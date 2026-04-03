@@ -1135,28 +1135,6 @@
             const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-            // Add this function to your @push('scripts') block
-            function updateRoomStatus(roomNo, status) {
-                // You can use Livewire.dispatch or a standard fetch request
-                // This example assumes you'll create a route to handle the update
-                fetch(`/admin/rooms/${roomNo}/status`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify({
-                            status: status.toLowerCase()
-                        })
-                    })
-                    .then(response => {
-                        if (response.ok) {
-                            window.location.reload(); // Refresh to show new colors
-                        } else {
-                            alert('Failed to update status.');
-                        }
-                    });
-            }
             /* ── Build grid ── */
             function buildGrid() {
                 const grid = document.getElementById('hc-grid');

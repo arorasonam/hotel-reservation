@@ -1,13 +1,15 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Models\HotelRoom;
+use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
 Route::post('/admin/rooms/{room_number}/status', function (Request $request, $room_number) {
-    $room = Room::where('room_number', $room_number)->firstOrFail();
+    $room = HotelRoom::where('room_number', $room_number)->firstOrFail();
 
     // Validate that the status is one of your allowed types
     $validated = $request->validate([
