@@ -30,8 +30,8 @@ class HotelInfolist
                                 TextEntry::make('id')->label('ID')->icon('heroicon-o-hashtag')->badge()->copyable(),
                                 TextEntry::make('name')->label('Name')->icon('heroicon-o-building-office')->weight('medium'),
                                 TextEntry::make('slug')->label('Slug')->icon('heroicon-o-link')->placeholder('-'),
-                                TextEntry::make('chain_code')->label('Chain Code')->badge()->placeholder('-'),
-                                TextEntry::make('ref_id')->label('Ref ID')->placeholder('-'),
+                                // TextEntry::make('chain_code')->label('Chain Code')->badge()->placeholder('-'),
+                                // TextEntry::make('ref_id')->label('Ref ID')->placeholder('-'),
                                 TextEntry::make('hotel_group_id')->label('Hotel Group ID')->placeholder('-'),
                             ]),
 

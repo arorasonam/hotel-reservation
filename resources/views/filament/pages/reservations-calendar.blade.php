@@ -1,10 +1,17 @@
 <x-filament::page>
 
+    {{--
+        LIVEWIRE COMPONENT ID — injected into a JS variable here in the blade template
+        (before @push scripts) so it is available when the pushed script runs.
+        This is the correct, reliable way to call Livewire actions from pushed scripts.
+    --}}
+    <script>
+        window.__livewireCalendarId = '{{ $this->getId() }}';
+    </script>
+
     <style>
-        /* ── Google Font ── */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-        /* ── Reset & Base ── */
         #hotel-calendar-wrap * {
             box-sizing: border-box;
             font-family: 'Inter', sans-serif;
@@ -12,7 +19,7 @@
 
         #hotel-calendar-wrap {
             --primary: #45556c;
-            --primary-hover: #45556c;
+            --primary-hover: #374155;
             --bg: #f4f6fa;
             --surface: #ffffff;
             --border: #e2e6ef;
@@ -22,11 +29,13 @@
             --today-fg: #ffffff;
             --occupied: #f87171;
             --mng: #4ade80;
-            --mnt: #facc15;
             --advance: #34d399;
             --partial: #60a5fa;
             --vacant-bg: #f0f4ff;
-            --room-w: 76px;
+            --vacant: #22c55e;
+            --dirty: #ef4444;
+            --mnt: #facc15;
+            --room-w: 90px;
             --col-w: 110px;
             --row-h: 34px;
             --header-h: 52px;
@@ -35,19 +44,9 @@
             background: var(--bg);
             padding: 16px;
             border-radius: 12px;
-            --vacant: #22c55e;
-            /* Green */
-            --dirty: #ef4444;
-            /* Red */
-            --mnt: #facc15;
-            /* Yellow/Maintenance */
-            --check-in: #3b82f6;
-            /* Blue (Optional extra) */
-            --check-out: #a855f7;
-            /* Purple (Optional extra) */
         }
 
-        /* ── Top toolbar ── */
+        /* ── Toolbar ── */
         .hc-toolbar {
             display: flex;
             align-items: center;
@@ -68,12 +67,6 @@
             cursor: pointer;
         }
 
-        .hc-toolbar select:focus,
-        .hc-toolbar input[type="date"]:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(30, 110, 245, .12);
-        }
-
         .hc-btn {
             display: inline-flex;
             align-items: center;
@@ -86,12 +79,7 @@
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            transition: background .15s, border-color .15s;
-        }
-
-        .hc-btn:hover {
-            background: #f0f4ff;
-            border-color: var(--primary);
+            transition: background .15s;
         }
 
         .hc-btn.primary {
@@ -101,7 +89,7 @@
         }
 
         .hc-btn.primary:hover {
-            background: var(--primary-hover);
+            background: #374155;
         }
 
         .hc-spacer {
@@ -128,7 +116,7 @@
             color: #45556c;
         }
 
-        /* ── Calendar wrapper ── */
+        /* ── Calendar Grid ── */
         .hc-scroll-wrap {
             overflow-x: auto;
             border: 1px solid var(--border);
@@ -139,12 +127,11 @@
 
         .hc-grid {
             display: grid;
-            /* room-col + N day columns */
             grid-template-columns: var(--room-w) repeat(var(--hc-days, 9), var(--col-w));
             min-width: max-content;
         }
 
-        /* ── Sticky header row ── */
+        /* Header cells */
         .hc-head-cell {
             height: var(--header-h);
             display: flex;
@@ -194,11 +181,7 @@
             opacity: .75;
         }
 
-        /* ── Vacant row ── */
-        .hc-vacant-row {
-            display: contents;
-        }
-
+        /* Vacant row */
         .hc-vacant-cell {
             height: 28px;
             display: flex;
@@ -218,14 +201,9 @@
             border-right: 2px solid var(--border);
             font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: .05em;
         }
 
-        /* ── Room-type group header ── */
-        .hc-type-header {
-            display: contents;
-        }
-
+        /* Room type header */
         .hc-type-cell {
             height: 30px;
             display: flex;
@@ -243,10 +221,6 @@
 
         .hc-type-cell.label {
             border-right: 2px solid var(--border);
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         .hc-type-cell.count-cell {
@@ -256,44 +230,166 @@
             color: #45556c;
         }
 
-        /* ── Room rows ── */
-        .hc-room-row {
-            display: contents;
-        }
-
+        /* Room label */
         .hc-room-label {
             height: var(--row-h);
             display: flex;
             align-items: center;
-            padding: 0 10px;
+            padding: 0 6px 0 8px;
             font-size: 12px;
             font-weight: 600;
-            color: var(--text);
             border-right: 2px solid var(--border);
             border-bottom: 1px solid var(--border);
-            background: var(--surface);
             position: sticky;
             left: 0;
             z-index: 5;
+            transition: background .2s, color .2s;
+            background: var(--surface);
+            color: var(--text);
         }
 
-        .hc-room-label .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 6px;
+        .hc-room-label.s-clean {
+            background: #22c55e;
+            color: #fff;
+        }
+
+        .hc-room-label.s-dirty {
+            background: #ef4444;
+            color: #fff;
+        }
+
+        .hc-room-label.s-mnt {
+            background: #facc15;
+            color: #78350f;
+        }
+
+        .hc-room-label.s-ooo {
+            background: #6b7280;
+            color: #fff;
+        }
+
+        .hc-room-label.s-complaint {
+            background: #f97316;
+            color: #fff;
+        }
+
+        .hc-room-label.s-sanitised {
+            background: #06b6d4;
+            color: #fff;
+        }
+
+        .hc-room-label.s-vip {
+            background: #8b5cf6;
+            color: #fff;
+        }
+
+        .hc-room-label.s-inspect {
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        .hc-room-label.s-discrepancy {
+            background: #ec4899;
+            color: #fff;
+        }
+
+        /* Brush icon + status dropdown */
+        .hc-brush-wrap {
+            position: relative;
+            margin-left: auto;
             flex-shrink: 0;
         }
 
-        .hc-room-label .status-dot.mnt {
-            background: var(--mnt);
+        .hc-brush-btn {
+            width: 22px;
+            height: 22px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, .28);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .15s;
+            padding: 0;
+            color: inherit;
         }
 
-        .hc-room-label .status-dot.vacant {
-            background: transparent;
-            border: 1.5px solid var(--border);
+        .hc-brush-btn:hover {
+            background: rgba(255, 255, 255, .5);
         }
 
+        .hc-room-label:not([class*="s-"]) .hc-brush-btn,
+        .hc-room-label.s-clean~* .hc-brush-btn {
+            /* fallback */
+        }
+
+        /* When no status class — default surface room */
+        .hc-room-label[class="hc-room-label"] .hc-brush-btn {
+            background: rgba(0, 0, 0, .07);
+            color: var(--muted);
+        }
+
+        .hc-status-dd {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 30px;
+            z-index: 9999;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+            min-width: 220px;
+            overflow: hidden;
+        }
+
+        .hc-status-dd.open {
+            display: block;
+        }
+
+        .hc-status-dd-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 14px;
+            font-size: 13px;
+            color: var(--text);
+            cursor: pointer;
+            transition: background .1s;
+            user-select: none;
+        }
+
+        .hc-status-dd-item:hover {
+            background: #f0f4ff;
+        }
+
+        .hc-status-dd-item.active {
+            font-weight: 700;
+            background: #f8f9fd;
+        }
+
+        .hc-s-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            display: inline-block;
+        }
+
+        .dd-tick {
+            margin-left: auto;
+            font-size: 13px;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .hc-status-dd-item.saving {
+            opacity: .55;
+            pointer-events: none;
+        }
+
+        /* Day cell */
         .hc-day-cell {
             height: var(--row-h);
             border-right: 1px solid var(--border);
@@ -301,7 +397,7 @@
             position: relative;
             cursor: pointer;
             transition: background .1s;
-            overflow: hidden;
+            overflow: visible;
         }
 
         .hc-day-cell:hover {
@@ -312,7 +408,7 @@
             background: #f5f8ff;
         }
 
-        /* ── Booking chip ── */
+        /* Booking chip */
         .hc-booking {
             position: absolute;
             top: 4px;
@@ -331,22 +427,31 @@
             box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
             transition: filter .15s;
             overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .hc-booking:hover {
-            filter: brightness(1.08);
+            filter: brightness(1.1);
+            z-index: 10;
         }
 
         .hc-booking.occupied {
-            background: var(--occupied);
+            background: #f87171;
         }
 
         .hc-booking.mng {
-            background: var(--mng);
-            color: #fff;
+            background: #4ade80;
         }
 
-        .hc-booking .check-icon {
+        .hc-booking.advance {
+            background: #34d399;
+        }
+
+        .hc-booking.partial {
+            background: #60a5fa;
+        }
+
+        .hc-booking .chk {
             width: 14px;
             height: 14px;
             background: rgba(255, 255, 255, .35);
@@ -356,9 +461,10 @@
             justify-content: center;
             margin-left: 5px;
             font-size: 9px;
+            flex-shrink: 0;
         }
 
-        /* ── Legend ── */
+        /* Legend */
         .hc-legend {
             display: flex;
             flex-wrap: wrap;
@@ -381,15 +487,285 @@
             border-radius: 3px;
         }
 
-        /* ════════════════════════════════════════
-       QUICK RESERVATION MODAL
-    ════════════════════════════════════════ */
+        /* ══ BOOKING DETAIL POPOVER ══ */
+        .hc-popover {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            width: 340px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, .22);
+            overflow: hidden;
+            animation: hcPopIn .15s ease;
+        }
+
+        .hc-popover.open {
+            display: block;
+        }
+
+        @keyframes hcPopIn {
+            from {
+                opacity: 0;
+                transform: scale(.95) translateY(6px)
+            }
+
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        .pop-head {
+            display: flex;
+            background: #111827;
+            color: #fff;
+            min-height: 54px;
+            position: relative;
+        }
+
+        .pop-res-bar {
+            background: #22c55e;
+            color: #fff;
+            font-weight: 700;
+            font-size: 12px;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            min-width: 120px;
+            border-radius: 12px 0 0 0;
+            letter-spacing: .02em;
+        }
+
+        .pop-ref {
+            padding: 10px 12px;
+            flex: 1;
+        }
+
+        .pop-ref-lbl {
+            font-size: 10px;
+            opacity: .55;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+        }
+
+        .pop-ref-val {
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .pop-edit {
+            position: absolute;
+            top: 10px;
+            right: 38px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #f97316;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .pop-close {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            opacity: .65;
+            line-height: 1;
+        }
+
+        .pop-close:hover {
+            opacity: 1;
+        }
+
+        .pop-body {
+            padding: 14px 16px 16px;
+        }
+
+        .pop-dates {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .pop-date .d {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--text);
+        }
+
+        .pop-date .m {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 3px;
+            text-transform: uppercase;
+        }
+
+        .pop-nights {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .pop-nights .n {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .pop-nights .dots {
+            font-size: 10px;
+            color: var(--muted);
+            letter-spacing: 2px;
+        }
+
+        .pop-room {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .pop-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 10px 0;
+        }
+
+        .pop-name {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .pop-email {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .pop-badges {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pop-badge-status {
+            border: 2px solid #22c55e;
+            color: #22c55e;
+            border-radius: 50%;
+            padding: 4px 9px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .pop-badge-source {
+            background: #e8f0fe;
+            color: #003580;
+            border-radius: 5px;
+            padding: 3px 9px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pop-billing {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .pop-bill-lbl {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--muted);
+            margin-bottom: 2px;
+        }
+
+        .pop-bill-amt {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .pop-bill-amt.red {
+            color: #ef4444;
+        }
+
+        .pop-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .pop-action {
+            flex: 1;
+            padding: 8px 4px;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            background: #f8f9fd;
+            cursor: pointer;
+            font-size: 11px;
+            color: var(--muted);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            transition: background .15s;
+        }
+
+        .pop-action:hover {
+            background: #e8f0fe;
+            color: var(--primary);
+        }
+
+        .pop-action svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .pop-cancel {
+            width: 100%;
+            padding: 10px;
+            background: #ef4444;
+            color: #fff;
+            border: none;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            transition: background .15s;
+        }
+
+        .pop-cancel:hover {
+            background: #dc2626;
+        }
+
+        .pop-cancel:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        /* ══ RESERVATION MODAL ══ */
         .hc-modal-overlay {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(15, 20, 50, .45);
-            z-index: 9999;
+            background: rgba(15, 20, 50, .48);
+            z-index: 10001;
             align-items: center;
             justify-content: center;
             backdrop-filter: blur(2px);
@@ -400,54 +776,50 @@
         }
 
         .hc-modal {
-            background: #ffffff !important;
-            /* background: var(--surface); */
+            background: #fff;
             border-radius: 14px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, .22);
-            width: 760px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .24);
+            width: 580px;
             max-width: 96vw;
             max-height: 92vh;
             overflow-y: auto;
-            animation: modalIn .2s ease;
+            animation: hcModalIn .2s ease;
         }
 
-        @keyframes modalIn {
+        @keyframes hcModalIn {
             from {
                 opacity: 0;
-                transform: scale(.96) translateY(10px);
+                transform: scale(.96) translateY(10px)
             }
 
             to {
                 opacity: 1;
-                transform: scale(1) translateY(0);
+                transform: none
             }
         }
 
-        .hc-modal-header {
+        .hc-modal-hd {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 20px;
+            padding: 16px 20px;
             border-bottom: 1px solid var(--border);
             background: #f8f9fd;
             border-radius: 14px 14px 0 0;
         }
 
-        .hc-modal-hotel {
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .08em;
-            color: var(--muted);
-        }
-
         .hc-modal-title {
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 700;
-            color: var(--text);
         }
 
-        .hc-modal-close {
+        .hc-modal-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .hc-modal-x {
             width: 28px;
             height: 28px;
             border: 1px solid var(--border);
@@ -459,218 +831,21 @@
             justify-content: center;
             font-size: 16px;
             color: var(--muted);
-            transition: background .15s;
         }
 
-        .hc-modal-close:hover {
+        .hc-modal-x:hover {
             background: #fee2e2;
             color: #ef4444;
         }
 
-        .hc-modal-body {
+        .hc-modal-bd {
             padding: 18px 20px;
         }
 
-        /* form grid */
-        .hc-form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px 20px;
-        }
-
-        .hc-form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .hc-form-group.span2 {
-            grid-column: span 2;
-        }
-
-        .hc-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: .06em;
-        }
-
-        .hc-label .req {
-            color: #ef4444;
-            margin-left: 2px;
-        }
-
-        .hc-input,
-        .hc-select {
-            padding: 8px 11px;
-            border: 1px solid var(--border);
-            border-radius: 7px;
-            font-size: 13px;
-            color: var(--text);
-            background: var(--surface);
-            outline: none;
-            transition: border-color .15s, box-shadow .15s;
-            width: 100%;
-        }
-
-        .hc-input:focus,
-        .hc-select:focus {
-            border-color: #45556c;
-            box-shadow: 0 0 0 3px rgba(30, 110, 245, .12);
-        }
-
-        .hc-input-group {
-            display: flex;
-            gap: 6px;
-        }
-
-        .hc-input-group .hc-input {
-            flex: 1;
-        }
-
-        .hc-input-group .hc-input.sm {
-            width: 80px;
-            flex: none;
-        }
-
-        .hc-input-icon {
-            position: relative;
-        }
-
-        .hc-input-icon .hc-input {
-            padding-right: 32px;
-        }
-
-        .hc-input-icon .icon {
-            position: absolute;
-            right: 9px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--muted);
-            font-size: 14px;
-            pointer-events: none;
-        }
-
-        /* Divider */
-        .hc-divider {
-            height: 1px;
-            background: var(--border);
-            margin: 14px 0;
-        }
-
-        /* Guest table */
-        .hc-guest-table {
-            width: 100%;
-            border-collapse: collapse;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            font-size: 12px;
-        }
-
-        .hc-guest-table th {
-            background: #f8f9fd;
-            padding: 8px 10px;
-            font-weight: 600;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-            color: var(--muted);
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-        }
-
-        .hc-guest-table td {
-            padding: 6px 10px;
-            border-bottom: 1px solid var(--border);
-            vertical-align: middle;
-        }
-
-        .hc-guest-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .hc-guest-table .hc-input {
-            padding: 5px 8px;
-            font-size: 12px;
-        }
-
-        .hc-guest-table .hc-select {
-            padding: 5px 8px;
-            font-size: 12px;
-        }
-
-        .hc-guest-actions {
-            display: flex;
-            gap: 4px;
-        }
-
-        .hc-icon-btn {
-            width: 26px;
-            height: 26px;
-            border: 1px solid var(--border);
-            border-radius: 5px;
-            background: var(--surface);
-            cursor: pointer;
-            font-size: 12px;
+        .hc-modal-ft {
             display: flex;
             align-items: center;
-            justify-content: center;
-            color: var(--muted);
-            transition: background .15s;
-        }
-
-        .hc-icon-btn:hover {
-            background: #f0f4ff;
-            color: var(--primary);
-        }
-
-        /* Rate row */
-        .hc-rate-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .hc-rate-row .hc-input {
-            width: 90px;
-        }
-
-        .hc-rate-row .hc-input.lg {
-            width: 130px;
-        }
-
-        /* Plan badge */
-        .hc-plan-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 10px;
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid #fcd34d;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .hc-plan-badge .remove {
-            cursor: pointer;
-            font-size: 14px;
-            line-height: 1;
-            color: #b45309;
-        }
-
-        .hc-plan-badge .remove:hover {
-            color: #ef4444;
-        }
-
-        /* Modal footer */
-        .hc-modal-footer {
-            display: flex;
-            align-items: center;
+            justify-content: flex-end;
             gap: 8px;
             padding: 14px 20px;
             border-top: 1px solid var(--border);
@@ -678,558 +853,699 @@
             border-radius: 0 0 14px 14px;
         }
 
-        .hc-modal-footer .hc-spacer {
-            flex: 1;
+        .fi-lbl {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            color: var(--muted);
+            margin: 16px 0 10px;
         }
 
-        .hc-tab-btn {
-            padding: 7px 14px;
-            border: 1px solid var(--border);
-            border-radius: 7px;
-            background: var(--surface);
-            color: var(--text);
+        .fi-lbl:first-child {
+            margin-top: 0;
+        }
+
+        .fi-g2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .fi-g3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+
+        .fi-g4 {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 60px;
+            gap: 10px;
+        }
+
+        .fi-f {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .fi-fl {
             font-size: 12px;
             font-weight: 500;
-            cursor: pointer;
-            transition: background .15s, border-color .15s;
+            color: #374151;
+            margin-bottom: 4px;
         }
 
-        .hc-tab-btn:hover {
-            background: #f0f4ff;
-            border-color: var(--primary);
+        .fi-fl .req {
+            color: #ef4444;
+            margin-left: 2px;
         }
 
-        .hc-tab-btn.active {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
+        .fi-in,
+        .fi-sel {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text);
+            background: var(--surface);
+            outline: none;
+            transition: border-color .15s, box-shadow .15s;
         }
 
-        .hc-save-btn {
-            padding: 8px 22px;
-            background: var(--primary);
+        .fi-in:focus,
+        .fi-sel:focus {
+            border-color: #45556c;
+            box-shadow: 0 0 0 3px rgba(69, 85, 108, .12);
+        }
+
+        .fi-div {
+            height: 1px;
+            background: var(--border);
+            margin: 14px 0;
+        }
+
+        .btn-save {
+            padding: 8px 20px;
+            background: #45556c;
             color: #fff;
             border: none;
-            border-radius: 7px;
+            border-radius: 6px;
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: background .15s;
         }
 
-        .hc-save-btn:hover {
-            background: var(--primary-hover);
+        .btn-save:hover {
+            background: #374155;
         }
 
-        /* Update status dot colors */
-        .hc-room-label .status-dot.vacant {
-            background: var(--vacant);
-            border: none;
+        .btn-save:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
         }
 
-        .hc-room-label .status-dot.dirty {
-            background: var(--dirty);
+        .btn-cancel {
+            padding: 8px 16px;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
         }
 
-        .hc-room-label .status-dot.mnt {
-            background: var(--mnt);
+        .btn-cancel:hover {
+            background: #f9fafb;
         }
 
-        .hc-room-label .status-dot.check-in {
-            background: var(--check-in);
+        /* Toast */
+        .hc-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 10002;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .2);
+            display: none;
+            animation: hcToastIn .2s ease;
         }
 
-        .hc-room-label .status-dot.check-out {
-            background: var(--check-out);
+        .hc-toast.show {
+            display: block;
         }
 
-        /* ── Responsive ── */
-        @media (max-width: 640px) {
-            .hc-form-grid {
-                grid-template-columns: 1fr;
+        .hc-toast.success {
+            background: #065f46;
+        }
+
+        .hc-toast.error {
+            background: #991b1b;
+        }
+
+        @keyframes hcToastIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
             }
 
-            .hc-form-group.span2 {
-                grid-column: span 1;
+            to {
+                opacity: 1;
+                transform: none
+            }
+        }
+
+        @media(max-width:640px) {
+
+            .fi-g2,
+            .fi-g3,
+            .fi-g4 {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 
+    {{-- ── CALENDAR WRAP ── --}}
     <div id="hotel-calendar-wrap">
-
-        {{-- ── TOP TOOLBAR ── --}}
         <div class="hc-toolbar">
             <select id="hc-property-select">
                 @foreach($hotels as $hotel)
-                <option>{{$hotel['name']}}</option>
+                <option value="{{ $hotel['id'] }}">{{ $hotel['name'] }}</option>
                 @endforeach
             </select>
             <select id="hc-type-filter">
-                <option>All Types</option>
+                <option value="">All Types</option>
                 @foreach($roomTypes as $type)
-                <option>{{$type['name']}}</option>
+                <option value="{{ $type['code'] }}">{{ $type['name'] }}</option>
                 @endforeach
             </select>
             <button class="hc-nav-btn" id="hc-prev">&#8249;</button>
             <input type="date" id="hc-date-input" />
             <button class="hc-nav-btn" id="hc-next">&#8250;</button>
             <span class="hc-spacer"></span>
-            <button class="hc-btn primary" id="hc-new-reservation-btn">
-                ＋ &nbsp;New Reservation
-            </button>
+            <button class="hc-btn primary" id="hc-new-res-btn">＋ &nbsp;New Reservation</button>
         </div>
-
-        {{-- ── CALENDAR GRID ── --}}
         <div class="hc-scroll-wrap">
             <div class="hc-grid" id="hc-grid"></div>
         </div>
-
-        {{-- ── LEGEND ── --}}
         <div class="hc-legend">
             <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--vacant)"></div> Clean / Vacant
+                <div class="hc-legend-dot" style="background:#22c55e"></div> Clean
             </div>
             <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--dirty)"></div> Dirty
+                <div class="hc-legend-dot" style="background:#ef4444"></div> Dirty
             </div>
             <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--mnt)"></div> Maintenance
+                <div class="hc-legend-dot" style="background:#facc15"></div> Maintenance
             </div>
             <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--occupied)"></div> Occupied
+                <div class="hc-legend-dot" style="background:#6b7280"></div> OOO
             </div>
             <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:#a78bfa"></div> Guest Block
+                <div class="hc-legend-dot" style="background:#f87171"></div> Occupied
             </div>
             <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--mng)"></div> MNG Block
+                <div class="hc-legend-dot" style="background:#34d399"></div> Advance Paid
             </div>
             <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--mnt)"></div> MNT Block
-            </div>
-            <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--advance)"></div> Advance Paid
-            </div>
-            <div class="hc-legend-item">
-                <div class="hc-legend-dot" style="background:var(--partial)"></div> Partial Booking Advance
+                <div class="hc-legend-dot" style="background:#60a5fa"></div> Partial
             </div>
         </div>
     </div>
 
-    {{-- ════════════════════════════════════════
-     QUICK RESERVATION MODAL
-════════════════════════════════════════ --}}
-    <div class="hc-modal-overlay" id="hc-modal-overlay">
-        <div class="hc-modal" id="hc-modal">
-
-            {{-- Header --}}
-            <div class="hc-modal-header">
-                <div>
-                    <div class="hc-modal-hotel">Grand Hotel</div>
-                    <div class="hc-modal-title">Quick Reservation</div>
-                </div>
-                <button class="hc-modal-close" id="hc-modal-close">✕</button>
+    {{-- ── BOOKING DETAIL POPOVER ── --}}
+    <div class="hc-popover" id="hc-popover">
+        <div class="pop-head">
+            <div class="pop-res-bar" id="pop-res-id">#---</div>
+            <div class="pop-ref">
+                <div class="pop-ref-lbl">Ref. Id</div>
+                <div class="pop-ref-val" id="pop-ref-val">---</div>
             </div>
+            <span class="pop-edit" id="pop-edit">EDIT</span>
+            <button class="pop-close" id="pop-close">✕</button>
+        </div>
+        <div class="pop-body">
+            <div class="pop-dates">
+                <div class="pop-date">
+                    <div class="d" id="pop-cin-d">--</div>
+                    <div class="m" id="pop-cin-m">---</div>
+                </div>
+                <div class="pop-nights">
+                    <span class="dots">·······</span>
+                    <span class="n" id="pop-nights">1</span>
+                    <span class="dots">·······</span>
+                </div>
+                <div class="pop-date">
+                    <div class="d" id="pop-cout-d">--</div>
+                    <div class="m" id="pop-cout-m">---</div>
+                </div>
+            </div>
+            <div class="pop-room" id="pop-room">Room ---</div>
+            <div class="pop-divider"></div>
+            <div class="pop-name" id="pop-name">Guest</div>
+            <div class="pop-email" id="pop-email"></div>
+            <div class="pop-badges">
+                <span class="pop-badge-status" id="pop-status">CONFIRMED</span>
+                <span class="pop-badge-source" id="pop-source">Direct</span>
+            </div>
+            <div class="pop-divider"></div>
+            <div class="pop-billing">
+                <div>
+                    <div class="pop-bill-lbl">TOTAL BILL</div>
+                    <div class="pop-bill-amt" id="pop-total">$0.00</div>
+                </div>
+                <div style="text-align:right">
+                    <div class="pop-bill-lbl">OUTSTANDING</div>
+                    <div class="pop-bill-amt red" id="pop-outstanding">$0.00</div>
+                </div>
+            </div>
+            <div class="pop-actions">
+                <button class="pop-action">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <rect x="2" y="5" width="20" height="14" rx="2" />
+                        <path d="M2 10h20" />
+                    </svg>Payment
+                </button>
+                <button class="pop-action">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>Room
+                </button>
+                <button class="pop-action">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                    </svg>Key Card
+                </button>
+            </div>
+            <button class="pop-cancel" id="pop-cancel-btn">Cancel Booking</button>
+        </div>
+    </div>
 
-            {{-- Body --}}
-            <div class="hc-modal-body">
-                <div class="hc-form-grid">
-
-                    {{-- Room Type --}}
-                    <div class="hc-form-group">
-                        <label class="hc-label">Room Type <span class="req">*</span></label>
-                        <select class="hc-select" id="qr-room-type">
+    {{-- ── NEW RESERVATION MODAL ── --}}
+    <div class="hc-modal-overlay" id="hc-modal-overlay">
+        <div class="hc-modal">
+            <div class="hc-modal-hd">
+                <div>
+                    <div class="hc-modal-title">New Reservation</div>
+                    <div class="hc-modal-sub">Fill in the details to create a booking</div>
+                </div>
+                <button class="hc-modal-x" id="hc-modal-close">✕</button>
+            </div>
+            <div class="hc-modal-bd">
+                <div class="fi-lbl">Stay Details</div>
+                <div class="fi-g2">
+                    <div class="fi-f">
+                        <label class="fi-fl">Room Type <span class="req">*</span></label>
+                        <select class="fi-sel" id="qr-room-type">
                             @foreach($roomTypes as $type)
-                            <option value="{{$type['code']}}">{{$type['name']}}</option>
+                            <option value="{{ $type['code'] }}">{{ $type['name'] }}</option>
                             @endforeach
                         </select>
                     </div>
-
-                    {{-- Status --}}
-                    <div class="hc-form-group">
-                        <label class="hc-label">Status <span class="req">*</span></label>
-                        <select class="hc-select" id="qr-status">
-                            <option>Confirmed</option>
-                            <option>Tentative</option>
-                            <option>Waitlist</option>
+                    <div class="fi-f">
+                        <label class="fi-fl">Room No</label>
+                        <input type="text" class="fi-in" id="qr-room-no" placeholder="e.g. 101">
+                    </div>
+                </div>
+                <div style="height:12px"></div>
+                <div class="fi-g4">
+                    <div class="fi-f">
+                        <label class="fi-fl">Arrival <span class="req">*</span></label>
+                        <input type="date" class="fi-in" id="qr-arrival">
+                    </div>
+                    <div class="fi-f">
+                        <label class="fi-fl">Nights</label>
+                        <input type="number" class="fi-in" id="qr-nights" value="1" min="1">
+                    </div>
+                    <div class="fi-f">
+                        <label class="fi-fl">Departure</label>
+                        <input type="date" class="fi-in" id="qr-departure">
+                    </div>
+                    <div class="fi-f">
+                        <label class="fi-fl">Adults</label>
+                        <input type="number" class="fi-in" id="qr-adults" value="1" min="1">
+                    </div>
+                </div>
+                <div class="fi-div"></div>
+                <div class="fi-lbl">Primary Guest</div>
+                <div class="fi-g3">
+                    <div class="fi-f">
+                        <label class="fi-fl">Title</label>
+                        <select class="fi-sel" id="qr-title">
+                            <option>Mr.</option>
+                            <option>Mrs.</option>
+                            <option>Ms.</option>
+                            <option>Dr.</option>
                         </select>
                     </div>
-
-                    {{-- Room No --}}
-                    <div class="hc-form-group">
-                        <label class="hc-label">Room No</label>
-                        <div class="hc-input-icon">
-                            <input type="text" class="hc-input" id="qr-room-no" placeholder="Search…">
-                            <span class="icon">🔍</span>
-                        </div>
+                    <div class="fi-f">
+                        <label class="fi-fl">First Name <span class="req">*</span></label>
+                        <input type="text" class="fi-in" id="qr-first-name" placeholder="First name">
                     </div>
-
-                    {{-- Rooms --}}
-                    <div class="hc-form-group">
-                        <label class="hc-label">Rooms <span class="req">*</span></label>
-                        <div class="hc-input-group">
-                            <input type="number" class="hc-input sm" id="qr-rooms" value="1" min="1">
-                            <input type="text" class="hc-input" id="qr-reserve-no" placeholder="Reserve No">
-                        </div>
+                    <div class="fi-f">
+                        <label class="fi-fl">Last Name <span class="req">*</span></label>
+                        <input type="text" class="fi-in" id="qr-last-name" placeholder="Last name">
                     </div>
-
-                    {{-- Arrival --}}
-                    <div class="hc-form-group">
-                        <label class="hc-label">Arrival <span class="req">*</span></label>
-                        <div class="hc-input-group">
-                            <input type="date" class="hc-input" id="qr-arrival">
-                            <input type="time" class="hc-input sm" id="qr-arrival-time" value="12:00">
-                        </div>
-                    </div>
-
-                    {{-- Nights & Departure --}}
-                    <div class="hc-form-group">
-                        <label class="hc-label">Nights / Departure <span class="req">*</span></label>
-                        <div class="hc-input-group">
-                            <input type="number" class="hc-input sm" id="qr-nights" value="1" min="1" placeholder="Nights">
-                            <input type="date" class="hc-input" id="qr-departure">
-                            <input type="time" class="hc-input sm" id="qr-dep-time" value="12:00">
-                        </div>
-                    </div>
-
-                    {{-- Pax --}}
-                    <div class="hc-form-group">
-                        <label class="hc-label">Pax</label>
-                        <div class="hc-input-group">
-                            <input type="number" class="hc-input" id="qr-adult" value="1" min="1" placeholder="Adult">
-                            <input type="number" class="hc-input" id="qr-child" value="0" min="0" placeholder="Child">
-                            <input type="number" class="hc-input" id="qr-infant" value="0" min="0" placeholder="Infant">
-                        </div>
-                    </div>
-
-                    <div></div>{{-- spacer --}}
-
                 </div>
-
-                {{-- Guest table --}}
-                <div class="hc-divider"></div>
-                <table class="hc-guest-table">
-                    <thead>
-                        <tr>
-                            <th style="width:50px">#</th>
-                            <th style="width:90px">Title</th>
-                            <th>Last Name</th>
-                            <th>First Name</th>
-                            <th style="width:100px">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="qr-guest-body">
-                        <tr>
-                            <td>Gst 1</td>
-                            <td>
-                                <select class="hc-select">
-                                    <option>Mr.</option>
-                                    <option>Mrs.</option>
-                                    <option>Ms.</option>
-                                    <option>Dr.</option>
-                                </select>
-                            </td>
-                            <td><input type="text" class="hc-input" placeholder="Last name"></td>
-                            <td><input type="text" class="hc-input" placeholder="First name"></td>
-                            <td>
-                                <div class="hc-guest-actions">
-                                    <button class="hc-icon-btn" title="Search">🔍</button>
-                                    <button class="hc-icon-btn" title="Edit">✏️</button>
-                                    <button class="hc-icon-btn" title="Profile">P</button>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="hc-divider"></div>
-
-                {{-- Travel / Company --}}
-                <div class="hc-form-grid">
-                    <div class="hc-form-group">
-                        <label class="hc-label">Travel Agent</label>
-                        <div class="hc-input-icon">
-                            <input type="text" class="hc-input" id="qr-travel-agent" placeholder="Search…">
-                            <span class="icon">🔍</span>
-                        </div>
+                <div style="height:10px"></div>
+                <div class="fi-g2">
+                    <div class="fi-f">
+                        <label class="fi-fl">Email</label>
+                        <input type="email" class="fi-in" id="qr-email" placeholder="email@example.com">
                     </div>
-                    <div class="hc-form-group">
-                        <label class="hc-label">Group</label>
-                        <div class="hc-input-icon">
-                            <input type="text" class="hc-input" id="qr-group" placeholder="Search…">
-                            <span class="icon">🔍</span>
-                        </div>
+                    <div class="fi-f">
+                        <label class="fi-fl">Phone</label>
+                        <input type="tel" class="fi-in" id="qr-phone" placeholder="+91 00000 00000">
                     </div>
-                    <div class="hc-form-group">
-                        <label class="hc-label">Company</label>
-                        <div class="hc-input-icon">
-                            <input type="text" class="hc-input" id="qr-company" placeholder="Search…">
-                            <span class="icon">🔍</span>
-                        </div>
+                </div>
+                <div class="fi-div"></div>
+                <div class="fi-lbl">Rate & Source</div>
+                <div class="fi-g3">
+                    <div class="fi-f">
+                        <label class="fi-fl">Rate / Night <span class="req">*</span></label>
+                        <input type="number" class="fi-in" id="qr-rate" value="0.00" step="0.01" min="0">
                     </div>
-                    <div class="hc-form-group">
-                        <label class="hc-label">Bus Source</label>
-                        <select class="hc-select" id="qr-bus-source">
+                    <div class="fi-f">
+                        <label class="fi-fl">Source</label>
+                        <select class="fi-sel" id="qr-source">
                             <option value="">— Select —</option>
                             <option>Direct</option>
+                            <option>Booking.com</option>
+                            <option>Expedia</option>
                             <option>OTA</option>
                             <option>Corporate</option>
                         </select>
                     </div>
-                    <div class="hc-form-group">
-                        <label class="hc-label">Rate Code <span class="req">*</span></label>
-                        <div class="hc-input-icon">
-                            <input type="text" class="hc-input" id="qr-rate-code" value="Regular Tariff">
-                            <span class="icon">🔍</span>
-                        </div>
-                    </div>
-                    <div class="hc-form-group">
-                        <label class="hc-label">Booker</label>
-                        <div class="hc-input-icon">
-                            <input type="text" class="hc-input" id="qr-booker" placeholder="Search…">
-                            <span class="icon">🔍</span>
-                        </div>
+                    <div class="fi-f">
+                        <label class="fi-fl">Status <span class="req">*</span></label>
+                        <select class="fi-sel" id="qr-status">
+                            <option value="confirmed">Confirmed</option>
+                            <option value="tentative">Tentative</option>
+                            <option value="waitlist">Waitlist</option>
+                        </select>
                     </div>
                 </div>
-
-                <div class="hc-divider"></div>
-
-                {{-- Rate & Plan --}}
-                <div class="hc-form-grid">
-                    <div class="hc-form-group span2">
-                        <label class="hc-label">Rate <span class="req">*</span></label>
-                        <div class="hc-rate-row">
-                            <input type="number" class="hc-input" id="qr-rate" value="270.00" step="0.01">
-                            <span style="color:var(--muted);font-size:12px">Disc %</span>
-                            <input type="number" class="hc-input sm" id="qr-disc-pct" placeholder="0">
-                            <span style="color:var(--muted);font-size:12px">Disc Amt</span>
-                            <input type="number" class="hc-input sm" id="qr-disc-amt" placeholder="0">
-                            <span style="color:var(--muted);font-size:12px">Plan</span>
-                            <div class="hc-plan-badge" id="qr-plan-badge">
-                                Continental Plan
-                                <span class="remove" id="qr-plan-remove">✕</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="hc-form-group span2">
-                        <label class="hc-label">Plan Amount / Ch1</label>
-                        <div class="hc-rate-row">
-                            <input type="number" class="hc-input" id="qr-plan-amt" value="0.000" step="0.001">
-                            <span style="color:var(--muted);font-size:12px">Ch1</span>
-                            <input type="number" class="hc-input" id="qr-ch1" value="0.000" step="0.001">
-                            <span style="color:var(--muted);font-size:12px">Disc %</span>
-                            <input type="number" class="hc-input sm" id="qr-ch1-disc-pct" placeholder="0">
-                            <span style="color:var(--muted);font-size:12px">Disc Amt</span>
-                            <input type="number" class="hc-input sm" id="qr-ch1-disc-amt" placeholder="0">
-                        </div>
-                    </div>
-                    <div class="hc-form-group">
-                        <label class="hc-label">Guest Type</label>
-                        <select class="hc-select" id="qr-guest-type">
-                            <option value="">— Select —</option>
-                            <option>FIT</option>
-                            <option>Group</option>
-                            <option>Corporate</option>
-                        </select>
-                    </div>
-                    <!-- <div class="hc-form-group">
-                        <label class="hc-label">Upgrade</label>
-                        <select class="hc-select" id="qr-upgrade">
-                            <option>None</option>
-                            <option>Room Upgrade</option>
-                            <option>Suite Upgrade</option>
-                        </select>
-                    </div>
-                    <div class="hc-form-group">
-                        <label class="hc-label">Segment</label>
-                        <select class="hc-select" id="qr-segment">
-                            <option value="">— Select —</option>
-                            <option>Leisure</option>
-                            <option>Business</option>
-                            <option>MICE</option>
-                        </select>
-                    </div> -->
-                </div>
-
             </div>
-
-            {{-- Footer --}}
-            <div class="hc-modal-footer">
-                <button class="hc-tab-btn">Routing</button>
-                <button class="hc-tab-btn active">Rate Edit</button>
-                <button class="hc-tab-btn">Package</button>
-                <button class="hc-tab-btn">Others</button>
-                <button class="hc-tab-btn">Auto Charge</button>
-                <button class="hc-tab-btn">⋮</button>
-                <span class="hc-spacer"></span>
-                <button class="hc-save-btn" id="qr-save">Save</button>
+            <div class="hc-modal-ft">
+                <button class="btn-cancel" id="qr-cancel">Cancel</button>
+                <button class="btn-save" id="qr-save">Save Reservation</button>
             </div>
         </div>
     </div>
 
+    <div class="hc-toast" id="hc-toast"></div>
+
     @push('scripts')
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        (function() {
+            'use strict';
 
-            // const ROOM_TYPES = [{
-            //         code: 'DLR',
-            //         label: 'Deluxe Rooms',
-            //         totalRooms: 13,
-            //         rooms: ['211', '212', '214', '215', '216', '217', '218', '219', '220', '501', '502', '504', '505']
-            //     },
-            //     {
-            //         code: 'EXE',
-            //         label: 'Executive Rooms',
-            //         totalRooms: 43,
-            //         rooms: ['201', '202', '203', '208', '209', '210', '311', '312', '314', '315', '316', '317', '318', '319', '320']
-            //     }
-            // ];
+            /* ════════════════════════════════════════════════════════
+               LIVEWIRE BRIDGE
+               Calls a method on the Livewire component that owns this
+               page. Works with Livewire 3 (used by Filament v3).
+            ════════════════════════════════════════════════════════ */
+            async function lwCall(method, ...args) {
+                // window.__livewireCalendarId is set inline in the blade above
+                const id = window.__livewireCalendarId;
+                if (!id) throw new Error('Livewire component ID not set');
 
+                // Livewire 3 API
+                if (window.Livewire && typeof window.Livewire.find === 'function') {
+                    const component = window.Livewire.find(id);
+                    if (component && typeof component.call === 'function') {
+                        return await component.call(method, ...args);
+                    }
+                }
+
+                // Fallback: Livewire 2 API
+                if (window.livewire && typeof window.livewire.find === 'function') {
+                    const component = window.livewire.find(id);
+                    if (component) return await component.call(method, ...args);
+                }
+
+                throw new Error('Livewire component not found. Make sure Livewire is loaded.');
+            }
+
+            /* ════════════════════════════════════════════════════════
+               CONSTANTS & STATE
+            ════════════════════════════════════════════════════════ */
             const ROOM_TYPES = @json($groupedRooms);
+            let BOOKINGS = @json($reservations ?? []);
 
-            // Bookings: { roomNo, startDate (YYYY-MM-DD), nights, guestName, type }
-            const BOOKINGS = [{
-                    roomNo: '217',
-                    startDate: '2026-03-26',
-                    nights: 1,
-                    guestName: 'Mr.JAYANTA',
-                    type: 'occupied',
-                    verified: true
+            const STATUS_OPTIONS = [{
+                    key: 'clean',
+                    label: 'Mark as Clean',
+                    color: '#22c55e'
                 },
                 {
-                    roomNo: '219',
-                    startDate: '2026-03-26',
-                    nights: 1,
-                    guestName: 'Mr.SARMIS',
-                    type: 'occupied',
-                    verified: false
+                    key: 'dirty',
+                    label: 'Mark as Dirty',
+                    color: '#ef4444'
+                },
+                {
+                    key: 'ooo',
+                    label: 'Mark as OOO',
+                    color: '#6b7280'
+                },
+                {
+                    key: 'complaint',
+                    label: 'Mark as Guest Complaint',
+                    color: '#f97316'
+                },
+                {
+                    key: 'sanitised',
+                    label: 'Mark as Sanitised',
+                    color: '#06b6d4'
+                },
+                {
+                    key: 'vip',
+                    label: 'Mark as VIP Guest',
+                    color: '#8b5cf6'
+                },
+                {
+                    key: 'inspect',
+                    label: 'Mark as To be Inspected',
+                    color: '#f59e0b'
+                },
+                {
+                    key: 'discrepancy',
+                    label: 'Mark as Discrepancy',
+                    color: '#ec4899'
+                },
+                {
+                    key: 'mnt',
+                    label: 'Mark as Maintenance',
+                    color: '#facc15'
                 },
             ];
 
-            // Maintenance rooms
-            const MNT_ROOMS = ['211', '504', '202'];
-
             const NUM_DAYS = 30;
+            const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-            /* ── State ── */
             let startDate = new Date();
             startDate.setHours(0, 0, 0, 0);
 
-            /* ── Helpers ── */
-            function addDays(date, n) {
-                const d = new Date(date);
-                d.setDate(d.getDate() + n);
-                return d;
+            /* ════════════════════════════════════════════════════════
+               HELPERS
+            ════════════════════════════════════════════════════════ */
+            function addDays(d, n) {
+                const x = new Date(d);
+                x.setDate(x.getDate() + n);
+                return x;
             }
 
             function fmtISO(d) {
                 return d.toISOString().slice(0, 10);
             }
 
-            function fmtDisplay(d) {
-                return d.toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short'
-                });
+            function pad2(n) {
+                return String(n).padStart(2, '0');
             }
-            const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-            /* ── Build grid ── */
+            function mkEl(tag, cls) {
+                const e = document.createElement(tag);
+                if (cls) e.className = cls;
+                return e;
+            }
+
+            let toastTimer;
+
+            function showToast(msg, type = 'success') {
+                const t = document.getElementById('hc-toast');
+                t.textContent = msg;
+                t.className = `hc-toast show ${type}`;
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => {
+                    t.className = 'hc-toast';
+                }, 3800);
+            }
+
+            function statusToKey(s) {
+                const map = {
+                    clean: 'clean',
+                    vacant: 'clean',
+                    dirty: 'dirty',
+                    mnt: 'mnt',
+                    maintenance: 'mnt',
+                    ooo: 'ooo',
+                    complaint: 'complaint',
+                    sanitised: 'sanitised',
+                    vip: 'vip',
+                    inspect: 'inspect',
+                    discrepancy: 'discrepancy',
+                };
+                return map[(s || '').toLowerCase()] || 'clean';
+            }
+
+            /* ════════════════════════════════════════════════════════
+               BUILD GRID
+            ════════════════════════════════════════════════════════ */
             function buildGrid() {
                 const grid = document.getElementById('hc-grid');
                 grid.innerHTML = '';
                 grid.style.setProperty('--hc-days', NUM_DAYS);
 
                 const today = fmtISO(new Date());
-                const days = [];
-                for (let i = 0; i < NUM_DAYS; i++) days.push(addDays(startDate, i));
+                const days = Array.from({
+                    length: NUM_DAYS
+                }, (_, i) => addDays(startDate, i));
 
-                // ── Header row ──
-                // Room No label
-                const rnLabel = cell('div', 'hc-head-cell room-label');
-                rnLabel.textContent = 'Room No';
-                grid.appendChild(rnLabel);
+                /* Header row */
+                const rnLbl = mkEl('div', 'hc-head-cell room-label');
+                rnLbl.textContent = 'Room No';
+                grid.appendChild(rnLbl);
 
                 days.forEach(d => {
                     const iso = fmtISO(d);
-                    const el = cell('div', 'hc-head-cell' + (iso === today ? ' today' : ''));
-                    el.innerHTML = `
-                <span class="day-num">${d.getDate()}</span>
-                <span class="day-month">${MONTH_SHORT[d.getMonth()]}</span>
-                <span class="day-name">${DAY_NAMES[d.getDay()]}</span>
-            `;
+                    const el = mkEl('div', 'hc-head-cell' + (iso === today ? ' today' : ''));
+                    el.innerHTML = `<span class="day-num">${d.getDate()}</span>
+                    <span class="day-month">${MONTH_SHORT[d.getMonth()]}</span>
+                    <span class="day-name">${DAY_NAMES[d.getDay()]}</span>`;
                     grid.appendChild(el);
                 });
 
-                // ── Vacant row ──
-                const vacLbl = cell('div', 'hc-vacant-cell label');
-                vacLbl.innerHTML = `<span>Vacant</span><span>▼</span>`;
+                /* Vacant row */
+                const vacLbl = mkEl('div', 'hc-vacant-cell label');
+                vacLbl.innerHTML = '<span>Vacant</span><span>▼</span>';
                 grid.appendChild(vacLbl);
-
                 days.forEach(d => {
-                    const vc = cell('div', 'hc-vacant-cell' + (fmtISO(d) === today ? ' today-col' : ''));
-                    vc.textContent = '{{$totalVacant}}';
+                    const vc = mkEl('div', 'hc-vacant-cell' + (fmtISO(d) === today ? ' today-col' : ''));
+                    vc.textContent = '{{ $totalVacant }}';
                     grid.appendChild(vc);
                 });
 
-                // ── Room type groups ──
+                /* Room type groups */
                 ROOM_TYPES.forEach(rt => {
-                    // Type header
-                    const thLabel = cell('div', 'hc-type-cell label');
-                    thLabel.innerHTML = `<span>${rt.code}</span><span style="color:var(--primary)">${rt.code}</span>`;
-                    thLabel.innerHTML = `<b>${rt.code}</b>`;
-                    grid.appendChild(thLabel);
+                    const th = mkEl('div', 'hc-type-cell label');
+                    th.innerHTML = `<b>${rt.code}</b>`;
+                    grid.appendChild(th);
 
-                    days.forEach(d => {
-                        const tc = cell('div', 'hc-type-cell count-cell');
+                    days.forEach(() => {
+                        const tc = mkEl('div', 'hc-type-cell count-cell');
                         tc.textContent = rt.totalRooms;
                         grid.appendChild(tc);
                     });
 
-                    // Room rows
                     rt.rooms.forEach(room => {
-                        // room is now an object: { room_number: "101", status: "dirty" }
                         const roomNo = room.room_number;
-                        const status = room.status ? room.status.toLowerCase() : 'clean';
+                        const sKey = statusToKey(room.status);
 
-                        // Map your specific requested colors
-                        // Green = clean/vacant, Red = dirty, Yellow = mnt
-                        let statusClass = 'vacant'; // Default Green
-                        if (status === 'dirty') statusClass = 'dirty'; // Red
-                        if (status === 'maintenance' || status === 'mnt') statusClass = 'mnt'; // Yellow
-                        if (status === 'check-in') statusClass = 'check-in'; // Blue
-                        if (status === 'check-out') statusClass = 'check-out'; // Purple
+                        /* ── Room label cell ── */
+                        const rl = mkEl('div', `hc-room-label s-${sKey}`);
+                        rl.dataset.room = roomNo;
+                        rl.dataset.status = sKey;
 
-                        const rl = cell('div', 'hc-room-label');
-                        rl.style.cursor = 'pointer'; // Make it look clickable
-                        rl.innerHTML = `<span class="status-dot ${statusClass}"></span>${roomNo}`;
-                        // ACTION: Add Click Event to Change Status
-                        rl.addEventListener('click', () => {
-                            const newStatus = prompt(`Change status for Room ${roomNo}:`, currentStatus);
+                        const nameSpan = mkEl('span');
+                        nameSpan.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+                        nameSpan.textContent = roomNo;
+                        rl.appendChild(nameSpan);
 
-                            if (newStatus && newStatus !== currentStatus) {
-                                updateRoomStatus(roomNo, newStatus);
-                            }
+                        /* Brush icon */
+                        const brushWrap = mkEl('div', 'hc-brush-wrap');
+                        const brushBtn = mkEl('button', 'hc-brush-btn');
+                        brushBtn.title = 'Set housekeeping status';
+                        brushBtn.type = 'button';
+                        brushBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18.37 2.63 14 7l-1.59-1.59a2 2 0 0 0-2.82 0L8 7l9 9
+                                 1.59-1.59a2 2 0 0 0 0-2.82L17 10l4.37-4.37a2.12 2.12 0 1 0-3-3Z"/>
+                        <path d="M9 8c-2 3-4 3.5-7 4l8 10c2-1 6-5 6-7"/>
+                    </svg>`;
+
+                        /* Status dropdown */
+                        const dd = mkEl('div', 'hc-status-dd');
+
+                        STATUS_OPTIONS.forEach(opt => {
+                            const item = mkEl('div', 'hc-status-dd-item' + (sKey === opt.key ? ' active' : ''));
+                            item.innerHTML = `<span class="hc-s-dot" style="background:${opt.color}"></span>
+                            ${opt.label}
+                            ${sKey === opt.key ? '<span class="dd-tick">✓</span>' : ''}`;
+
+                            item.addEventListener('click', async (e) => {
+                                e.stopPropagation();
+                                const prev = rl.dataset.status;
+                                if (prev === opt.key) {
+                                    dd.classList.remove('open');
+                                    return;
+                                }
+
+                                /* Optimistic update */
+                                rl.className = `hc-room-label s-${opt.key}`;
+                                rl.dataset.status = opt.key;
+                                dd.querySelectorAll('.hc-status-dd-item').forEach(i => {
+                                    i.classList.remove('active');
+                                    i.querySelector('.dd-tick')?.remove();
+                                });
+                                item.classList.add('active', 'saving');
+                                const tick = mkEl('span', 'dd-tick');
+                                tick.textContent = '✓';
+                                item.appendChild(tick);
+                                dd.classList.remove('open');
+
+                                try {
+                                    const res = await lwCall('updateRoomStatus', roomNo, opt.key);
+                                    if (res && res.success) {
+                                        showToast(`Room ${roomNo}: ${opt.label.replace('Mark as ', '')}`, 'success');
+                                    } else {
+                                        throw new Error((res && res.message) || 'Update failed');
+                                    }
+                                } catch (err) {
+                                    /* Revert */
+                                    rl.className = `hc-room-label s-${prev}`;
+                                    rl.dataset.status = prev;
+                                    showToast('Failed to update status: ' + err.message, 'error');
+                                } finally {
+                                    item.classList.remove('saving');
+                                }
+                            });
+
+                            dd.appendChild(item);
                         });
+
+                        brushBtn.addEventListener('click', e => {
+                            e.stopPropagation();
+                            /* Close all other dropdowns */
+                            document.querySelectorAll('.hc-status-dd.open').forEach(x => {
+                                if (x !== dd) x.classList.remove('open');
+                            });
+                            dd.classList.toggle('open');
+                        });
+
+                        brushWrap.appendChild(brushBtn);
+                        brushWrap.appendChild(dd);
+                        rl.appendChild(brushWrap);
                         grid.appendChild(rl);
 
+                        /* ── Day cells ── */
                         days.forEach(d => {
                             const iso = fmtISO(d);
-                            const dc = cell('div', 'hc-day-cell' + (iso === today ? ' today-col' : ''));
+                            const dc = mkEl('div', 'hc-day-cell' + (iso === today ? ' today-col' : ''));
 
-                            // Booking logic remains the same, using roomNo variable
+                            /* Booking chips */
                             BOOKINGS.forEach(b => {
-                                if (b.roomNo === roomNo && b.startDate === iso) {
-                                    const chip = document.createElement('div');
-                                    chip.className = `hc-booking ${b.type}`;
-                                    const w = (b.nights * 110) - 4;
-                                    chip.style.width = w + 'px';
-                                    chip.innerHTML = b.guestName + (b.verified ? ' <span class="check-icon">✓</span>' : '');
+                                if (String(b.room_no) === String(roomNo) && b.check_in === iso) {
+                                    const chip = mkEl('div', `hc-booking ${b.booking_type || 'occupied'}`);
+                                    chip.style.width = (((b.nights || 1) * 110) - 4) + 'px';
+                                    const gName = [b.title, b.first_name, b.last_name].filter(Boolean).join(' ');
+                                    chip.innerHTML = (gName || 'Guest') + (b.verified ? ' <span class="chk">✓</span>' : '');
+                                    chip.addEventListener('click', e => {
+                                        e.stopPropagation();
+                                        openPopover(b, e);
+                                    });
                                     dc.appendChild(chip);
                                 }
                             });
 
+                            /* Empty cell click → new reservation */
                             dc.addEventListener('click', () => openModal({
                                 roomNo,
                                 date: iso
@@ -1240,15 +1556,196 @@
                 });
             }
 
-            function cell(tag, cls) {
-                const el = document.createElement(tag);
-                el.className = cls;
-                return el;
+            /* ════════════════════════════════════════════════════════
+               BOOKING DETAIL POPOVER
+            ════════════════════════════════════════════════════════ */
+            const popover = document.getElementById('hc-popover');
+
+            function openPopover(b, event) {
+                const cin = new Date(b.check_in + 'T00:00:00');
+                const nights = b.nights || 1;
+                const cout = addDays(cin, nights);
+                const total = (parseFloat(b.rate) || 0) * nights;
+                const outst = b.outstanding != null ? parseFloat(b.outstanding) : total;
+
+                document.getElementById('pop-res-id').textContent = b.reservation_id || ('#' + b.id) || '#---';
+                document.getElementById('pop-ref-val').textContent = b.ref_id || b.id || '---';
+                document.getElementById('pop-cin-d').textContent = pad2(cin.getDate());
+                document.getElementById('pop-cin-m').textContent = MONTH_SHORT[cin.getMonth()].toUpperCase() + ' ' + cin.getFullYear();
+                document.getElementById('pop-cout-d').textContent = pad2(cout.getDate());
+                document.getElementById('pop-cout-m').textContent = MONTH_SHORT[cout.getMonth()].toUpperCase() + ' ' + cout.getFullYear();
+                document.getElementById('pop-nights').textContent = nights;
+                document.getElementById('pop-room').textContent = 'Room ' + b.room_no + (b.room_type ? ' · ' + b.room_type : '');
+                document.getElementById('pop-name').textContent = [b.title, b.first_name, b.last_name].filter(Boolean).join(' ') || 'Guest';
+                document.getElementById('pop-email').textContent = b.email || '';
+                document.getElementById('pop-status').textContent = (b.status || 'confirmed').toUpperCase();
+                document.getElementById('pop-source').textContent = b.source || 'Direct';
+                document.getElementById('pop-total').textContent = '$' + total.toFixed(2);
+                document.getElementById('pop-outstanding').textContent = '$' + outst.toFixed(2);
+
+                /* Position near cursor, keep inside viewport */
+                const pw = 340,
+                    ph = 490;
+                const left = Math.min(event.clientX + 14, window.innerWidth - pw - 14);
+                const top = Math.min(event.clientY + 14, window.innerHeight - ph - 14);
+                popover.style.left = left + 'px';
+                popover.style.top = top + 'px';
+                popover.dataset.bookingId = String(b.id || '');
+                popover.classList.add('open');
             }
 
-            /* ── Date input sync ── */
+            document.getElementById('pop-close').addEventListener('click', () => popover.classList.remove('open'));
+
+            document.addEventListener('click', e => {
+                if (popover.classList.contains('open') && !popover.contains(e.target)) {
+                    popover.classList.remove('open');
+                }
+            });
+
+            document.getElementById('pop-edit').addEventListener('click', () => {
+                const id = popover.dataset.bookingId;
+                if (id) window.location.href = `/filament/reservations/${id}/edit`;
+            });
+
+            document.getElementById('pop-cancel-btn').addEventListener('click', async () => {
+                const id = parseInt(popover.dataset.bookingId);
+                if (!id) return;
+                if (!confirm('Are you sure you want to cancel this booking?')) return;
+
+                const btn = document.getElementById('pop-cancel-btn');
+                btn.disabled = true;
+                btn.textContent = 'Cancelling…';
+
+                try {
+                    const res = await lwCall('cancelReservation', id);
+                    if (res && res.success) {
+                        BOOKINGS = BOOKINGS.filter(b => b.id !== id);
+                        buildGrid();
+                        popover.classList.remove('open');
+                        showToast('Booking cancelled', 'success');
+                    } else {
+                        throw new Error((res && res.message) || 'Cancel failed');
+                    }
+                } catch (err) {
+                    showToast('Failed to cancel: ' + err.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Cancel Booking';
+                }
+            });
+
+            /* ════════════════════════════════════════════════════════
+               NEW RESERVATION MODAL
+            ════════════════════════════════════════════════════════ */
+            const overlay = document.getElementById('hc-modal-overlay');
+
+            function openModal(ctx = {}) {
+                /* Reset fields */
+                ['qr-first-name', 'qr-last-name', 'qr-email', 'qr-phone'].forEach(id => {
+                    document.getElementById(id).value = '';
+                });
+                document.getElementById('qr-rate').value = '0.00';
+                document.getElementById('qr-room-no').value = ctx.roomNo || '';
+
+                if (ctx.date) {
+                    document.getElementById('qr-arrival').value = ctx.date;
+                    document.getElementById('qr-nights').value = 1;
+                    document.getElementById('qr-departure').value = fmtISO(addDays(new Date(ctx.date + 'T00:00:00'), 1));
+                }
+                overlay.classList.add('open');
+            }
+
+            document.getElementById('hc-new-res-btn').addEventListener('click', () => openModal());
+            document.getElementById('hc-modal-close').addEventListener('click', () => overlay.classList.remove('open'));
+            document.getElementById('qr-cancel').addEventListener('click', () => overlay.classList.remove('open'));
+            overlay.addEventListener('click', e => {
+                if (e.target === overlay) overlay.classList.remove('open');
+            });
+
+            /* Nights ↔ Departure sync */
+            document.getElementById('qr-arrival').addEventListener('input', function() {
+                const n = parseInt(document.getElementById('qr-nights').value) || 1;
+                if (this.value) document.getElementById('qr-departure').value = fmtISO(addDays(new Date(this.value + 'T00:00:00'), n));
+            });
+            document.getElementById('qr-nights').addEventListener('input', function() {
+                const arr = document.getElementById('qr-arrival').value;
+                if (arr) document.getElementById('qr-departure').value = fmtISO(addDays(new Date(arr + 'T00:00:00'), parseInt(this.value) || 1));
+            });
+            document.getElementById('qr-departure').addEventListener('input', function() {
+                const arr = document.getElementById('qr-arrival').value;
+                if (arr && this.value) {
+                    const diff = Math.round((new Date(this.value) - new Date(arr)) / 86400000);
+                    document.getElementById('qr-nights').value = Math.max(1, diff);
+                }
+            });
+
+            /* Save */
+            document.getElementById('qr-save').addEventListener('click', async () => {
+                const arrival = document.getElementById('qr-arrival').value;
+                const fName = document.getElementById('qr-first-name').value.trim();
+                const lName = document.getElementById('qr-last-name').value.trim();
+
+                if (!arrival || !fName || !lName) {
+                    showToast('Arrival date, first name and last name are required', 'error');
+                    return;
+                }
+
+                const btn = document.getElementById('qr-save');
+                btn.disabled = true;
+                btn.textContent = 'Saving…';
+
+                const nights = parseInt(document.getElementById('qr-nights').value) || 1;
+                const rate = parseFloat(document.getElementById('qr-rate').value) || 0;
+
+                const payload = {
+                    room_type: document.getElementById('qr-room-type').value,
+                    room_no: document.getElementById('qr-room-no').value,
+                    check_in: arrival,
+                    check_out: document.getElementById('qr-departure').value,
+                    nights,
+                    adults: parseInt(document.getElementById('qr-adults').value) || 1,
+                    title: document.getElementById('qr-title').value,
+                    first_name: fName,
+                    last_name: lName,
+                    email: document.getElementById('qr-email').value,
+                    phone: document.getElementById('qr-phone').value,
+                    rate,
+                    source: document.getElementById('qr-source').value,
+                    status: document.getElementById('qr-status').value,
+                };
+
+                try {
+                    const res = await lwCall('storeReservation', payload);
+
+                    if (res && res.success) {
+                        BOOKINGS.push({
+                            id: res.reservation_id,
+                            reservation_id: '#RES' + String(res.reservation_id || '').padStart(7, '0'),
+                            ...payload,
+                            booking_type: payload.status === 'confirmed' ? 'occupied' : 'partial',
+                            verified: payload.status === 'confirmed',
+                            outstanding: rate * nights,
+                        });
+                        buildGrid();
+                        overlay.classList.remove('open');
+                        showToast('Reservation saved!', 'success');
+                    } else {
+                        throw new Error((res && res.message) || 'Save failed');
+                    }
+                } catch (err) {
+                    showToast('Error: ' + err.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Save Reservation';
+                }
+            });
+
+            /* ════════════════════════════════════════════════════════
+               NAVIGATION
+            ════════════════════════════════════════════════════════ */
             const dateInput = document.getElementById('hc-date-input');
             dateInput.value = fmtISO(startDate);
+
             dateInput.addEventListener('change', () => {
                 startDate = new Date(dateInput.value + 'T00:00:00');
                 buildGrid();
@@ -1264,56 +1761,27 @@
                 buildGrid();
             });
 
-            /* ── Modal ── */
-            const overlay = document.getElementById('hc-modal-overlay');
+            /* Close all dropdowns on outside click */
+            document.addEventListener('click', () => {
+                document.querySelectorAll('.hc-status-dd.open').forEach(d => d.classList.remove('open'));
+            });
 
-            function openModal(ctx) {
-                // pre-fill fields
-                if (ctx && ctx.date) {
-                    document.getElementById('qr-arrival').value = ctx.date;
-                    const dep = addDays(new Date(ctx.date + 'T00:00:00'), 1);
-                    document.getElementById('qr-departure').value = fmtISO(dep);
-                }
-                if (ctx && ctx.roomNo) {
-                    document.getElementById('qr-room-no').value = ctx.roomNo;
-                }
-                overlay.classList.add('open');
+            /* ════════════════════════════════════════════════════════
+               INIT — wait for Livewire to be ready before building
+            ════════════════════════════════════════════════════════ */
+            if (window.Livewire) {
+                // Livewire 3: fires after all components are initialized
+                window.Livewire.hook('commit', () => {});
+                buildGrid();
+            } else {
+                // Fallback: wait for DOMContentLoaded + a short tick
+                document.addEventListener('livewire:init', buildGrid);
+                document.addEventListener('livewire:initialized', buildGrid);
+                // Ultimate fallback
+                setTimeout(buildGrid, 100);
             }
 
-            document.getElementById('hc-new-reservation-btn').addEventListener('click', () => openModal({}));
-            document.getElementById('hc-modal-close').addEventListener('click', () => overlay.classList.remove('open'));
-            overlay.addEventListener('click', e => {
-                if (e.target === overlay) overlay.classList.remove('open');
-            });
-
-            // Nights ↔ Departure sync
-            document.getElementById('qr-nights').addEventListener('input', function() {
-                const arr = document.getElementById('qr-arrival').value;
-                if (!arr) return;
-                const dep = addDays(new Date(arr + 'T00:00:00'), parseInt(this.value) || 1);
-                document.getElementById('qr-departure').value = fmtISO(dep);
-            });
-            document.getElementById('qr-departure').addEventListener('input', function() {
-                const arr = document.getElementById('qr-arrival').value;
-                if (!arr || !this.value) return;
-                const diff = Math.round((new Date(this.value) - new Date(arr)) / 86400000);
-                document.getElementById('qr-nights').value = Math.max(1, diff);
-            });
-
-            // Plan remove
-            document.getElementById('qr-plan-remove').addEventListener('click', () => {
-                document.getElementById('qr-plan-badge').style.display = 'none';
-            });
-
-            // Save stub
-            document.getElementById('qr-save').addEventListener('click', () => {
-                alert('Reservation saved! (Wire up to your Laravel backend)');
-                overlay.classList.remove('open');
-            });
-
-            /* ── Init ── */
-            buildGrid();
-        });
+        })();
     </script>
     @endpush
 

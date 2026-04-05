@@ -18,15 +18,26 @@ return new class extends Migration
 
             // Basic Hotel Details
             $table->string('name');
+            $table->string('slug')->unique();
+            $table->uuid('ref_id')->unique()->nullable();
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
+            $table->jsonb('contact')->nullable();
 
             // Address & Mapping Details
-            $table->string('address')->nullable();
+            $table->jsonb('address')->nullable();
             $table->string('city')->nullable();
             // Using decimal for precision in Lat/Long
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
+
+            // Location Polymorphic Relation (UUID Morphs for Country/State/City)
+            $table->uuidMorphs('locationable');
+
+            // Ratings & Scores
+            $table->decimal('rating', 3, 2)->nullable();
+            $table->unsignedInteger('user_ratings_total')->nullable();
+            $table->decimal('recommended_score', 3, 2)->nullable();
 
             // Inventory Details
             // This is the total physical rooms in the building

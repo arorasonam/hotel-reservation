@@ -22,11 +22,11 @@ class HotelForm
                     ->schema([
                         TextInput::make('name')->label('Hotel Name')->required()->maxLength(255),
                         TextInput::make('slug')->label('Slug')->required()->maxLength(255),
-                        TextInput::make('chain_code')->label('Chain Code')->maxLength(255),
-                        TextInput::make('ref_id')
-                            ->rules(['nullable', 'uuid'])
-                            ->placeholder('Leave blank to auto-generate')
-                            ->dehydrateStateUsing(fn($state) => filled($state) ? $state : \Illuminate\Support\Str::uuid()),
+                        // TextInput::make('chain_code')->label('Chain Code')->maxLength(255),
+                        // TextInput::make('ref_id')
+                        //     ->rules(['nullable', 'uuid'])
+                        //     ->placeholder('Leave blank to auto-generate')
+                        //     ->dehydrateStateUsing(fn($state) => filled($state) ? $state : \Illuminate\Support\Str::uuid()),
                         Select::make('hotel_group_id')->label('Hotel Group')->required()->relationship('hotelGroup', 'name')->searchable()->preload(),
                     ]),
                 Section::make('Address')
