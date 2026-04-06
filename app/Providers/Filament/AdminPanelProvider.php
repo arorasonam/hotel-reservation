@@ -67,7 +67,6 @@ class AdminPanelProvider extends PanelProvider
                 FilamentShieldPlugin::make(),
             ])
             ->navigationGroups([
-                'Reservations',
                 'Filament Shield',
                 'Admin Management',
                 'Hotel Admin Management',

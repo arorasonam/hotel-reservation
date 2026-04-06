@@ -1014,6 +1014,7 @@
     {{-- ── CALENDAR WRAP ── --}}
     <div id="hotel-calendar-wrap">
         <div class="hc-toolbar">
+
             <select id="hc-property-select">
                 @foreach($hotels as $hotel)
                 <option value="{{ $hotel['id'] }}">{{ $hotel['name'] }}</option>
@@ -1025,9 +1026,11 @@
                 <option value="{{ $type['code'] }}">{{ $type['name'] }}</option>
                 @endforeach
             </select>
+            <button class="hc-btn" id="hc-prev-week">« Week</button>
             <button class="hc-nav-btn" id="hc-prev">&#8249;</button>
             <input type="date" id="hc-date-input" />
             <button class="hc-nav-btn" id="hc-next">&#8250;</button>
+            <button class="hc-btn" id="hc-next-week">Week »</button>
             <span class="hc-spacer"></span>
             <button class="hc-btn primary" id="hc-new-res-btn">＋ &nbsp;New Reservation</button>
         </div>
@@ -1780,6 +1783,18 @@
                 // Ultimate fallback
                 setTimeout(buildGrid, 100);
             }
+
+            document.getElementById('hc-prev-week').addEventListener('click', () => {
+                startDate = addDays(startDate, -7);
+                dateInput.value = fmtISO(startDate);
+                buildGrid();
+            });
+
+            document.getElementById('hc-next-week').addEventListener('click', () => {
+                startDate = addDays(startDate, 7);
+                dateInput.value = fmtISO(startDate);
+                buildGrid();
+            });
 
         })();
     </script>

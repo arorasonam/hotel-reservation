@@ -17,6 +17,7 @@ class Reservations extends Page
 
     protected static ?string $navigationLabel = 'Reservations';
     protected string $view = 'filament.pages.reservations-calendar';
+    protected static ?string $slug = 'hotel-calendar';
 
     /* ─────────────────────────────────────────────────────────────
        VIEW DATA
