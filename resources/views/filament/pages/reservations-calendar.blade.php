@@ -1032,7 +1032,10 @@
             <button class="hc-nav-btn" id="hc-next">&#8250;</button>
             <button class="hc-btn" id="hc-next-week">Week »</button>
             <span class="hc-spacer"></span>
-            <button class="hc-btn primary" id="hc-new-res-btn">＋ &nbsp;New Reservation</button>
+            <a href="{{ route('filament.admin.resources.reservations.create') }}"
+                class="hc-btn primary" id="hc-new-res-btn">
+                ＋ &nbsp;New Reservation
+            </a>
         </div>
         <div class="hc-scroll-wrap">
             <div class="hc-grid" id="hc-grid"></div>
@@ -1109,13 +1112,24 @@
                 </div>
             </div>
             <div class="pop-actions">
+                <button class="pop-action primary-action" id="pop-checkin-btn" style="display: none; background: #22c55e; color: white;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3" />
+                    </svg>Check-in
+                </button>
+
+                <button class="pop-action primary-action" id="pop-checkout-btn" style="display: none; background: #ef4444; color: white;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M19.8 12H9" />
+                    </svg>Check-out
+                </button>
                 <button class="pop-action">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                         <rect x="2" y="5" width="20" height="14" rx="2" />
                         <path d="M2 10h20" />
                     </svg>Payment
                 </button>
-                <button class="pop-action">
+                <!-- <button class="pop-action">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                         <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                     </svg>Room
@@ -1124,126 +1138,15 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                         <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
                     </svg>Key Card
-                </button>
+                </button> -->
             </div>
             <button class="pop-cancel" id="pop-cancel-btn">Cancel Booking</button>
         </div>
     </div>
 
-    {{-- ── NEW RESERVATION MODAL ── --}}
-    <div class="hc-modal-overlay" id="hc-modal-overlay">
-        <div class="hc-modal">
-            <div class="hc-modal-hd">
-                <div>
-                    <div class="hc-modal-title">New Reservation</div>
-                    <div class="hc-modal-sub">Fill in the details to create a booking</div>
-                </div>
-                <button class="hc-modal-x" id="hc-modal-close">✕</button>
-            </div>
-            <div class="hc-modal-bd">
-                <div class="fi-lbl">Stay Details</div>
-                <div class="fi-g2">
-                    <div class="fi-f">
-                        <label class="fi-fl">Room Type <span class="req">*</span></label>
-                        <select class="fi-sel" id="qr-room-type">
-                            @foreach($roomTypes as $type)
-                            <option value="{{ $type['code'] }}">{{ $type['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Room No</label>
-                        <input type="text" class="fi-in" id="qr-room-no" placeholder="e.g. 101">
-                    </div>
-                </div>
-                <div style="height:12px"></div>
-                <div class="fi-g4">
-                    <div class="fi-f">
-                        <label class="fi-fl">Arrival <span class="req">*</span></label>
-                        <input type="date" class="fi-in" id="qr-arrival">
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Nights</label>
-                        <input type="number" class="fi-in" id="qr-nights" value="1" min="1">
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Departure</label>
-                        <input type="date" class="fi-in" id="qr-departure">
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Adults</label>
-                        <input type="number" class="fi-in" id="qr-adults" value="1" min="1">
-                    </div>
-                </div>
-                <div class="fi-div"></div>
-                <div class="fi-lbl">Primary Guest</div>
-                <div class="fi-g3">
-                    <div class="fi-f">
-                        <label class="fi-fl">Title</label>
-                        <select class="fi-sel" id="qr-title">
-                            <option>Mr.</option>
-                            <option>Mrs.</option>
-                            <option>Ms.</option>
-                            <option>Dr.</option>
-                        </select>
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">First Name <span class="req">*</span></label>
-                        <input type="text" class="fi-in" id="qr-first-name" placeholder="First name">
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Last Name <span class="req">*</span></label>
-                        <input type="text" class="fi-in" id="qr-last-name" placeholder="Last name">
-                    </div>
-                </div>
-                <div style="height:10px"></div>
-                <div class="fi-g2">
-                    <div class="fi-f">
-                        <label class="fi-fl">Email</label>
-                        <input type="email" class="fi-in" id="qr-email" placeholder="email@example.com">
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Phone</label>
-                        <input type="tel" class="fi-in" id="qr-phone" placeholder="+91 00000 00000">
-                    </div>
-                </div>
-                <div class="fi-div"></div>
-                <div class="fi-lbl">Rate & Source</div>
-                <div class="fi-g3">
-                    <div class="fi-f">
-                        <label class="fi-fl">Rate / Night <span class="req">*</span></label>
-                        <input type="number" class="fi-in" id="qr-rate" value="0.00" step="0.01" min="0">
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Source</label>
-                        <select class="fi-sel" id="qr-source">
-                            <option value="">— Select —</option>
-                            <option>Direct</option>
-                            <option>Booking.com</option>
-                            <option>Expedia</option>
-                            <option>OTA</option>
-                            <option>Corporate</option>
-                        </select>
-                    </div>
-                    <div class="fi-f">
-                        <label class="fi-fl">Status <span class="req">*</span></label>
-                        <select class="fi-sel" id="qr-status">
-                            <option value="confirmed">Confirmed</option>
-                            <option value="tentative">Tentative</option>
-                            <option value="waitlist">Waitlist</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="hc-modal-ft">
-                <button class="btn-cancel" id="qr-cancel">Cancel</button>
-                <button class="btn-save" id="qr-save">Save Reservation</button>
-            </div>
-        </div>
-    </div>
+    {{-- Reservation creation is handled by ReservationResource (/filament/reservations/create) --}}
 
     <div class="hc-toast" id="hc-toast"></div>
-
     @push('scripts')
     <script>
         (function() {
@@ -1281,7 +1184,6 @@
             ════════════════════════════════════════════════════════ */
             const ROOM_TYPES = @json($groupedRooms);
             let BOOKINGS = @json($reservations ?? []);
-
             const STATUS_OPTIONS = [{
                     key: 'clean',
                     label: 'Mark as Clean',
@@ -1416,14 +1318,32 @@
                 });
 
                 /* Vacant row */
+                const baseCount = "{{$totalVacant}}"; // Total clean/vacant rooms
                 const vacLbl = mkEl('div', 'hc-vacant-cell label');
                 vacLbl.innerHTML = '<span>Vacant</span><span>▼</span>';
                 grid.appendChild(vacLbl);
+
+                // Populate the row
                 days.forEach(d => {
-                    const vc = mkEl('div', 'hc-vacant-cell' + (fmtISO(d) === today ? ' today-col' : ''));
-                    vc.textContent = '{{ $totalVacant }}';
+                    const iso = fmtISO(d);
+                    const vc = mkEl('div', 'hc-vacant-cell' + (iso === today ? ' today-col' : ''));
+
+                    // Updated Logic: Count the room as occupied if:
+                    // 1. The calendar date is between check-in and check-out
+                    // 2. OR the calendar date exactly matches check-in (handles same-day bookings)
+                    const occupiedToday = BOOKINGS.filter(b => {
+                        const isSameDay = b.check_in === b.check_out;
+                        if (isSameDay) {
+                            return iso === b.check_in; // Count on that single day
+                        }
+                        return iso >= b.check_in && iso < b.check_out; // Standard range
+                    }).length;
+
+                    vc.textContent = Math.max(0, baseCount - occupiedToday);
                     grid.appendChild(vc);
                 });
+                console.log('ROOM_TYPES:', ROOM_TYPES);
+                console.log('Bookings:', BOOKINGS);
 
                 /* Room type groups */
                 ROOM_TYPES.forEach(rt => {
@@ -1431,9 +1351,23 @@
                     th.innerHTML = `<b>${rt.code}</b>`;
                     grid.appendChild(th);
 
-                    days.forEach(() => {
+                    days.forEach(d => {
+                        const iso = fmtISO(d);
                         const tc = mkEl('div', 'hc-type-cell count-cell');
-                        tc.textContent = rt.totalRooms;
+
+                        const typeOccupied = BOOKINGS.filter(b => {
+                            const matchesType = b.room_type_id === rt.id;
+                            const isSameDay = b.check_in === b.check_out;
+                            console.log('b.room_type_id:', b.room_type_id, 'rt.id:', rt.id);
+                            console.log(`Evaluating booking ${b.id} for date ${iso}: matchesType=${matchesType}, check_in=${b.check_in}, check_out=${b.check_out}, isSameDay=${isSameDay}`);
+                            if (matchesType) {
+                                console.log(`Checking booking ${b.id} for room type ${rt.code} on date ${iso}: check_in=${b.check_in}, check_out=${b.check_out}, isSameDay=${isSameDay}`);
+                                return isSameDay ? (iso === b.check_in) : (iso >= b.check_in && iso < b.check_out);
+                            }
+                            return false;
+                        }).length;
+                        console.log(`Date: ${iso}, Type: ${rt.code}, totalRooms: ${rt.totalRooms}, Occupied: ${typeOccupied}`);
+                        tc.textContent = Math.max(0, rt.totalRooms - typeOccupied);
                         grid.appendChild(tc);
                     });
 
@@ -1482,24 +1416,35 @@
                                 }
 
                                 /* Optimistic update */
-                                rl.className = `hc-room-label s-${opt.key}`;
-                                rl.dataset.status = opt.key;
-                                dd.querySelectorAll('.hc-status-dd-item').forEach(i => {
-                                    i.classList.remove('active');
-                                    i.querySelector('.dd-tick')?.remove();
-                                });
-                                item.classList.add('active', 'saving');
-                                const tick = mkEl('span', 'dd-tick');
-                                tick.textContent = '✓';
-                                item.appendChild(tick);
-                                dd.classList.remove('open');
-
+                                // rl.className = `hc-room-label s-${opt.key}`;
+                                // rl.dataset.status = opt.key;
+                                // dd.querySelectorAll('.hc-status-dd-item').forEach(i => {
+                                //     i.classList.remove('active');
+                                //     i.querySelector('.dd-tick')?.remove();
+                                // });
+                                // item.classList.add('active', 'saving');
+                                // const tick = mkEl('span', 'dd-tick');
+                                // tick.textContent = '✓';
+                                // item.appendChild(tick);
+                                // dd.classList.remove('open');
+                                item.classList.add('saving');
                                 try {
                                     const res = await lwCall('updateRoomStatus', roomNo, opt.key);
                                     if (res && res.success) {
-                                        showToast(`Room ${roomNo}: ${opt.label.replace('Mark as ', '')}`, 'success');
+                                        // 2. UPDATE LOCAL DATA: Find the room in our JS object and change its status
+                                        ROOM_TYPES.forEach(rt => {
+                                            const room = rt.rooms.find(r => String(r.room_number) === String(roomNo));
+                                            if (room) {
+                                                room.status = opt.key;
+                                            }
+                                        });
+
+                                        // 3. RE-RENDER: Redraw the grid with the new data
+                                        buildGrid();
+
+                                        showToast(`Room ${roomNo} updated to ${opt.label}`, 'success');
                                     } else {
-                                        throw new Error((res && res.message) || 'Update failed');
+                                        throw new Error(res.message || 'Update failed');
                                     }
                                 } catch (err) {
                                     /* Revert */
@@ -1535,14 +1480,13 @@
 
                             /* Booking chips */
                             BOOKINGS.forEach(b => {
-                                // Normalize both values to strings and trim spaces
+                                // Force both identifiers to strings and trim to avoid integer vs string mismatches
                                 const bookingRoom = String(b.room_no || '').trim();
-                                const rowRoom = String(roomNo || '').trim();
+                                const gridRoom = String(roomNo || '').trim();
 
-                                if (bookingRoom === rowRoom && b.check_in === iso) {
+                                if (bookingRoom === gridRoom && b.check_in === iso) {
                                     const chip = mkEl('div', `hc-booking ${b.booking_type || 'occupied'}`);
 
-                                    // Calculate width based on column width (110px) minus padding
                                     const nights = parseInt(b.nights) || 1;
                                     chip.style.width = ((nights * 110) - 4) + 'px';
 
@@ -1603,8 +1547,27 @@
                 popover.style.left = left + 'px';
                 popover.style.top = top + 'px';
                 popover.dataset.bookingId = String(b.id || '');
+
+                const checkInBtn = document.getElementById('pop-checkin-btn');
+                const checkOutBtn = document.getElementById('pop-checkout-btn');
+
+                // Show Check-in if status is confirmed/tentative; show Check-out if already checked_in
+                if (b.status === 'checked_in') {
+                    checkInBtn.style.display = 'none';
+                    checkOutBtn.style.display = 'flex';
+                } else if (['confirmed', 'tentative'].includes(b.status)) {
+                    checkInBtn.style.display = 'flex';
+                    checkOutBtn.style.display = 'none';
+                } else {
+                    checkInBtn.style.display = 'none';
+                    checkOutBtn.style.display = 'none';
+                }
+                popover.dataset.bookingId = b.id;
                 popover.classList.add('open');
             }
+            // Event Listeners for the new actions
+            document.getElementById('pop-checkin-btn').addEventListener('click', () => handleStatusChange('checked_in'));
+            document.getElementById('pop-checkout-btn').addEventListener('click', () => handleStatusChange('checked_out'));
 
             document.getElementById('pop-close').addEventListener('click', () => popover.classList.remove('open'));
 
@@ -1616,7 +1579,9 @@
 
             document.getElementById('pop-edit').addEventListener('click', () => {
                 const id = popover.dataset.bookingId;
-                if (id) window.location.href = `/filament/reservations/${id}/edit`;
+                if (id) {
+                    window.location.href = `/filament/reservations/reservations/${id}/edit`;
+                }
             });
 
             document.getElementById('pop-cancel-btn').addEventListener('click', async () => {
@@ -1646,111 +1611,38 @@
                 }
             });
 
-            /* ════════════════════════════════════════════════════════
-               NEW RESERVATION MODAL
-            ════════════════════════════════════════════════════════ */
-            const overlay = document.getElementById('hc-modal-overlay');
-
+            /* Empty cell click → redirect to ReservationResource create page
+               with room_no and check_in pre-filled as query params               */
             function openModal(ctx = {}) {
-                /* Reset fields */
-                ['qr-first-name', 'qr-last-name', 'qr-email', 'qr-phone'].forEach(id => {
-                    document.getElementById(id).value = '';
-                });
-                document.getElementById('qr-rate').value = '0.00';
-                document.getElementById('qr-room-no').value = ctx.roomNo || '';
+                const hotelId = document.getElementById('hc-property-select').value;
+                const params = new URLSearchParams();
 
-                if (ctx.date) {
-                    document.getElementById('qr-arrival').value = ctx.date;
-                    document.getElementById('qr-nights').value = 1;
-                    document.getElementById('qr-departure').value = fmtISO(addDays(new Date(ctx.date + 'T00:00:00'), 1));
-                }
-                overlay.classList.add('open');
+                params.set('hotel_id', hotelId);
+                if (ctx.roomNo) params.set('room_no', ctx.roomNo);
+                if (ctx.date) params.set('check_in', ctx.date);
+
+                const baseUrl = "{{ route('filament.admin.resources.reservations.create') }}";
+                window.location.href = `${baseUrl}?${params.toString()}`;
             }
 
-            document.getElementById('hc-new-res-btn').addEventListener('click', () => openModal());
-            document.getElementById('hc-modal-close').addEventListener('click', () => overlay.classList.remove('open'));
-            document.getElementById('qr-cancel').addEventListener('click', () => overlay.classList.remove('open'));
-            overlay.addEventListener('click', e => {
-                if (e.target === overlay) overlay.classList.remove('open');
-            });
-
-            /* Nights ↔ Departure sync */
-            document.getElementById('qr-arrival').addEventListener('input', function() {
-                const n = parseInt(document.getElementById('qr-nights').value) || 1;
-                if (this.value) document.getElementById('qr-departure').value = fmtISO(addDays(new Date(this.value + 'T00:00:00'), n));
-            });
-            document.getElementById('qr-nights').addEventListener('input', function() {
-                const arr = document.getElementById('qr-arrival').value;
-                if (arr) document.getElementById('qr-departure').value = fmtISO(addDays(new Date(arr + 'T00:00:00'), parseInt(this.value) || 1));
-            });
-            document.getElementById('qr-departure').addEventListener('input', function() {
-                const arr = document.getElementById('qr-arrival').value;
-                if (arr && this.value) {
-                    const diff = Math.round((new Date(this.value) - new Date(arr)) / 86400000);
-                    document.getElementById('qr-nights').value = Math.max(1, diff);
-                }
-            });
-
-            /* Save */
-            document.getElementById('qr-save').addEventListener('click', async () => {
-                const arrival = document.getElementById('qr-arrival').value;
-                const fName = document.getElementById('qr-first-name').value.trim();
-                const lName = document.getElementById('qr-last-name').value.trim();
-
-                if (!arrival || !fName || !lName) {
-                    showToast('Arrival date, first name and last name are required', 'error');
-                    return;
-                }
-
-                const btn = document.getElementById('qr-save');
-                btn.disabled = true;
-                btn.textContent = 'Saving…';
-
-                const nights = parseInt(document.getElementById('qr-nights').value) || 1;
-                const rate = parseFloat(document.getElementById('qr-rate').value) || 0;
-
-                const payload = {
-                    room_type: document.getElementById('qr-room-type').value,
-                    room_no: document.getElementById('qr-room-no').value,
-                    check_in: arrival,
-                    check_out: document.getElementById('qr-departure').value,
-                    nights,
-                    adults: parseInt(document.getElementById('qr-adults').value) || 1,
-                    title: document.getElementById('qr-title').value,
-                    first_name: fName,
-                    last_name: lName,
-                    email: document.getElementById('qr-email').value,
-                    phone: document.getElementById('qr-phone').value,
-                    rate,
-                    source: document.getElementById('qr-source').value,
-                    status: document.getElementById('qr-status').value,
-                };
+            async function handleStatusChange(newStatus) {
+                const id = popover.dataset.bookingId;
+                if (!id || !confirm(`Are you sure you want to ${newStatus.replace('_', ' ')}?`)) return;
 
                 try {
-                    const res = await lwCall('storeReservation', payload);
-
+                    const res = await lwCall('updateReservationStatus', id, newStatus);
                     if (res && res.success) {
-                        BOOKINGS.push({
-                            id: res.reservation_id,
-                            reservation_id: '#RES' + String(res.reservation_id || '').padStart(7, '0'),
-                            ...payload,
-                            booking_type: payload.status === 'confirmed' ? 'occupied' : 'partial',
-                            verified: payload.status === 'confirmed',
-                            outstanding: rate * nights,
-                        });
-                        buildGrid();
-                        overlay.classList.remove('open');
-                        showToast('Reservation saved!', 'success');
+                        showToast(`Guest ${newStatus.replace('_', ' ')} successfully`, 'success');
+                        window.location.reload(); // Refresh to update grid bars and room statuses
                     } else {
-                        throw new Error((res && res.message) || 'Save failed');
+                        throw new Error(res.message);
                     }
                 } catch (err) {
                     showToast('Error: ' + err.message, 'error');
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = 'Save Reservation';
                 }
-            });
+            }
+
+            // "New Reservation" button is now an <a> tag — no JS needed for it
 
             /* ════════════════════════════════════════════════════════
                NAVIGATION
@@ -1781,9 +1673,24 @@
             /* ════════════════════════════════════════════════════════
                INIT — wait for Livewire to be ready before building
             ════════════════════════════════════════════════════════ */
+            function initCalendar() {
+                // Re-fetch the latest data from the window if Livewire updated it
+                const rawRooms = document.querySelector('[data-grouped-rooms]');
+                if (rawRooms) {
+                    // Update local state before building
+                    ROOM_TYPES = JSON.parse(rawRooms.getAttribute('data-grouped-rooms'));
+                }
+                buildGrid();
+            }
             if (window.Livewire) {
                 // Livewire 3: fires after all components are initialized
-                window.Livewire.hook('commit', () => {});
+                window.Livewire.hook('morph.updated', ({
+                    component
+                }) => {
+                    if (component.id === window.__livewireCalendarId) {
+                        buildGrid();
+                    }
+                });
                 buildGrid();
             } else {
                 // Fallback: wait for DOMContentLoaded + a short tick

@@ -23,7 +23,7 @@ class ReservationGuest extends Model
      */
     public function guest()
     {
-        return $this->belongsTo(User::class, 'guest_id');
+        return $this->belongsTo(Guest::class, 'guest_id');
     }
 
     /**

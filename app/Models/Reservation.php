@@ -21,6 +21,7 @@ class Reservation extends Model
         'status',
         'rate',
         'nights',
+        'room_no'
         // ... any other fields you are saving
     ];
 
@@ -52,7 +53,7 @@ class Reservation extends Model
 
     public function guest()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Guest::class);
     }
 
     public function roomType()

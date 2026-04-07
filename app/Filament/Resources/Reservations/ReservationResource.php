@@ -35,7 +35,9 @@ class ReservationResource extends Resource
 
     protected static ?string $navigationLabel = 'Reservations';
 
-    protected static UnitEnum|string|null $navigationGroup = 'Management';
+    protected static UnitEnum|string|null $navigationGroup = 'Reservation Management';
+
+    protected static ?int $navigationSort = 1;
 
     /**
      * Requirement: Tabbed Interface using Schema
@@ -56,37 +58,37 @@ class ReservationResource extends Resource
                                             ->schema([
                                                 Select::make('guest_id')
                                                     ->label('Search Existing Guest')
-                                                    ->relationship('guest', 'name')
-                                                    ->searchable()
+                                                    // Update relationship to point to 'guest' (from Guests table)
+                                                    ->relationship('guest', 'first_name') // Changed 'name' to 'first_name'
+                                                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->first_name} {$record->last_name}") // Shows both in dropdown
+                                                    ->searchable(['first_name', 'last_name']) // Allows searching by both
                                                     ->preload()
                                                     ->live()
                                                     ->afterStateUpdated(function ($state, $set) {
                                                         if (!$state) return;
-                                                        $user = \App\Models\User::find($state);
-                                                        if ($user) {
-                                                            $set('first_name', $user->first_name);
-                                                            $set('last_name', $user->last_name);
-                                                            $set('email', $user->email);
-                                                            $set('phone', $user->phone);
+
+                                                        // Explicitly query the Guest model instead of User
+                                                        $guest = \App\Models\Guest::find($state);
+                                                        if ($guest) {
+                                                            $set('first_name', $guest->first_name);
+                                                            $set('last_name', $guest->last_name);
+                                                            $set('email', $guest->email);
+                                                            $set('phone', $guest->phone);
                                                         }
                                                     })
-                                                    /** RESTORED: Add New Guest Option **/
                                                     ->createOptionForm([
                                                         Grid::make(2)
                                                             ->schema([
                                                                 TextInput::make('first_name')->required(),
                                                                 TextInput::make('last_name')->required(),
-                                                                TextInput::make('email')->email()->unique('users', 'email'),
+                                                                TextInput::make('email')->email()->unique('guests', 'email'),
                                                                 TextInput::make('phone')->tel(),
                                                             ]),
                                                     ])
                                                     ->createOptionUsing(function (array $data) {
-                                                        // Satisfy the NOT NULL 'name' constraint on users table
+                                                        // Create record in 'guests' table
                                                         $data['name'] = trim($data['first_name'] . ' ' . $data['last_name']);
-                                                        $data['role'] = 'user';
-                                                        $data['password'] = \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(10));
-
-                                                        return \App\Models\User::create($data)->id;
+                                                        return \App\Models\Guest::create($data)->id;
                                                     })
                                                     ->columnSpan(2),
 
@@ -112,7 +114,6 @@ class ReservationResource extends Resource
                                     ->columnSpanFull(),
                             ]),
 
-                        // Inside the form() method, update the Stay Details Tab:
                         Tab::make('Stay Details')
                             ->icon('heroicon-m-calendar')
                             ->schema([
@@ -145,22 +146,18 @@ class ReservationResource extends Resource
                                                     ->label('Room Type')
                                                     ->placeholder('Select a hotel first')
                                                     ->options(function (callable $get) {
-                                                        $hotelId = $get('hotel_id');
-                                                        if (!$hotelId) return [];
-
                                                         return \App\Models\RoomType::pluck('name', 'id');
                                                     })
                                                     ->required()
-                                                    ->live(), // Important: Must be live for Room No to react
+                                                    ->live(),
 
                                                 Select::make('room_no')
                                                     ->label('Room No')
-                                                    ->placeholder('Select a room type first')
+                                                    ->placeholder('Select room type first')
                                                     ->options(function (callable $get) {
                                                         $roomTypeId = $get('room_type_id');
                                                         if (!$roomTypeId) return [];
 
-                                                        // This must return an array where the KEY matches what is in your DB
                                                         return \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
                                                             ->pluck('room_number', 'room_number')
                                                             ->toArray();
@@ -170,7 +167,7 @@ class ReservationResource extends Resource
                                                     ->live(),
                                             ]),
                                     ]),
-                            ]),
+                            ]), // Added closing brackets for Section/Tab
 
                         Tab::make('Payment Information')
                             ->icon('heroicon-m-credit-card')

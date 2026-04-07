@@ -19,6 +19,11 @@ class Reservations extends Page
     protected string $view = 'filament.pages.reservations-calendar';
     protected static ?string $slug = 'hotel-calendar';
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     /* ─────────────────────────────────────────────────────────────
        VIEW DATA
     ───────────────────────────────────────────────────────────── */
@@ -26,26 +31,29 @@ class Reservations extends Page
     {
         $groupedRooms = RoomType::with('rooms')->get()->map(function ($type) {
             return [
+                'id' => $type->id,
                 'code'       => $type->code,
                 'label'      => $type->name,
-                'totalRooms' => $type->rooms->count(),
+                'totalRooms' => $type->rooms()->whereIn('status', ['clean', 'vacant'])->count(),
                 'rooms'      => $type->rooms->map(fn($room) => [
-                    'room_number' => $room->room_number,
-                    'status'      => $this->safeCol($room, 'status', 'clean'),
+                    'room_number' => (string) $room->room_number, // Cast to string for JS comparison
+                    'status'      => strtolower(trim($room->status ?? 'dirty')),
                 ])->toArray(),
             ];
         });
-
-        $reservations = $this->loadReservations();
-        $totalVacant = $this->countVacantRooms();
-
         return [
-            'hotels'       => $this->getHotels(),
-            'roomTypes'    => $this->getRoomTypes(),
+            'hotels'       => Hotel::all()->map(fn($h) => ['id' => $h->id, 'name' => $h->name])->toArray(),
+            'roomTypes'    => RoomType::all()->map(fn($t) => ['id' => $t->id, 'code' => $t->code, 'name' => $t->name])->toArray(),
             'groupedRooms' => $groupedRooms,
-            'totalVacant'  => $totalVacant,
-            'reservations' => $reservations,
+            'totalVacant'  => $this->countVacantRooms(),
+            'reservations' => $this->loadReservations(),
         ];
+    }
+
+    private function countVacantRooms(): int
+    {
+        // Requirement: Only count rooms marked as 'clean' or 'vacant'
+        return HotelRoom::whereIn('status', ['clean', 'vacant'])->count();
     }
 
     private function loadReservations(): array
@@ -54,37 +62,47 @@ class Reservations extends Page
             ->whereIn('status', ['confirmed', 'tentative', 'waitlist', 'checked_in'])
             ->get()
             ->map(function ($res) {
-                // Get Primary Guest or fallback to first guest
                 $primary = $res->reservationGuests->where('is_primary', true)->first()
                     ?? $res->reservationGuests->first();
 
                 return [
                     'id'             => $res->id,
-                    'reservation_id' => $res->reservation_number, // The GRA_0000001 format
-                    'room_no'        => (string) $res->room_no,
+                    'reservation_id' => $res->reservation_number,
+                    'room_no'        => trim((string) $res->room_no), // Force string to match grid labels
                     'first_name'     => $primary?->first_name ?? 'Guest',
                     'last_name'      => $primary?->last_name ?? '',
                     'check_in'       => $res->check_in ? Carbon::parse($res->check_in)->format('Y-m-d') : null,
                     'check_out'      => $res->check_out ? Carbon::parse($res->check_out)->format('Y-m-d') : null,
-                    'nights'         => $res->nights ?? 1,
+                    'nights'         => (int) ($res->nights ?? 1),
                     'status'         => $res->status,
                     'booking_type'   => $this->mapBookingType($res->status),
                     'verified'       => in_array($res->status, ['confirmed', 'checked_in']),
+                    'room_type_id' => $res->room_type_id,
                 ];
             })->toArray();
     }
 
-    private function countVacantRooms(): int
+    private function mapBookingType(?string $status): string
     {
-        try {
-            $cols = Schema::getColumnListing((new HotelRoom)->getTable());
-            return in_array('status', $cols)
-                ? HotelRoom::whereIn('status', ['clean', 'vacant'])->count()
-                : HotelRoom::count();
-        } catch (\Throwable) {
-            return 0;
-        }
+        return match ($status) {
+            'confirmed', 'checked_in' => 'occupied',
+            'tentative'               => 'partial',
+            'waitlist'                => 'advance',
+            default                   => 'occupied',
+        };
     }
+
+    // private function countVacantRooms(): int
+    // {
+    //     try {
+    //         $cols = Schema::getColumnListing((new HotelRoom)->getTable());
+    //         return in_array('status', $cols)
+    //             ? HotelRoom::whereIn('status', ['clean', 'vacant'])->count()
+    //             : HotelRoom::count();
+    //     } catch (\Throwable) {
+    //         return 0;
+    //     }
+    // }
 
     /* ─────────────────────────────────────────────────────────────
        LIVEWIRE ACTION — updateRoomStatus
@@ -223,16 +241,6 @@ class Reservations extends Page
         }
     }
 
-    private function mapBookingType(?string $status): string
-    {
-        return match ($status) {
-            'confirmed', 'checked_in' => 'occupied',
-            'tentative'               => 'partial',
-            'waitlist'                => 'advance',
-            default                   => 'occupied',
-        };
-    }
-
     private function getHotels(): array
     {
         return Hotel::all()->map(fn($h) => ['id' => $h->id, 'name' => $h->name])->toArray();
@@ -245,5 +253,26 @@ class Reservations extends Page
             'code' => $t->code,
             'name' => $t->name,
         ])->toArray();
+    }
+
+    public function updateReservationStatus(int $id, string $status): array
+    {
+        $reservation = Reservation::find($id);
+        if (!$reservation) return ['success' => false, 'message' => 'Reservation not found'];
+
+        try {
+            // 1. Update Reservation Status
+            $reservation->update(['status' => $status]);
+
+            // 2. Automatically update the Room Status based on action
+            if ($reservation->room_no) {
+                $roomStatus = ($status === 'checked_in') ? 'occupied' : 'dirty';
+                HotelRoom::where('room_number', $reservation->room_no)->update(['status' => $roomStatus]);
+            }
+
+            return ['success' => true];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
     }
 }
