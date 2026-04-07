@@ -1535,11 +1535,20 @@
 
                             /* Booking chips */
                             BOOKINGS.forEach(b => {
-                                if (String(b.room_no) === String(roomNo) && b.check_in === iso) {
+                                // Normalize both values to strings and trim spaces
+                                const bookingRoom = String(b.room_no || '').trim();
+                                const rowRoom = String(roomNo || '').trim();
+
+                                if (bookingRoom === rowRoom && b.check_in === iso) {
                                     const chip = mkEl('div', `hc-booking ${b.booking_type || 'occupied'}`);
-                                    chip.style.width = (((b.nights || 1) * 110) - 4) + 'px';
-                                    const gName = [b.title, b.first_name, b.last_name].filter(Boolean).join(' ');
+
+                                    // Calculate width based on column width (110px) minus padding
+                                    const nights = parseInt(b.nights) || 1;
+                                    chip.style.width = ((nights * 110) - 4) + 'px';
+
+                                    const gName = [b.first_name, b.last_name].filter(Boolean).join(' ');
                                     chip.innerHTML = (gName || 'Guest') + (b.verified ? ' <span class="chk">✓</span>' : '');
+
                                     chip.addEventListener('click', e => {
                                         e.stopPropagation();
                                         openPopover(b, e);

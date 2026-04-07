@@ -14,8 +14,10 @@ use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Grid;
+use Filament\Forms\Components\Repeater;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Actions\DeleteAction;
@@ -23,6 +25,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Set;
 use BackedEnum;
 use UnitEnum;
+use Filament\Forms\Get;
 
 class ReservationResource extends Resource
 {
@@ -46,111 +49,128 @@ class ReservationResource extends Resource
                         Tab::make('Guest Information')
                             ->icon('heroicon-m-user')
                             ->schema([
-                                Select::make('guest_id')
-                                    ->label('Existing Guest Lookup')
-                                    ->relationship('guest', 'first_name') // or 'full_name' if you have a virtual attribute
-                                    ->getOptionLabelFromRecordUsing(fn($record) => trim("{$record->first_name} {$record->last_name}") ?: $record->email ?: 'Unknown Guest')
-                                    ->searchable()
-                                    ->preload()
-                                    // 1. This adds the "+" button and "Add..." option if no match is found
-                                    ->createOptionForm([
+                                Repeater::make('reservationGuests')
+                                    ->relationship('reservationGuests')
+                                    ->schema([
+                                        Grid::make(3)
+                                            ->schema([
+                                                Select::make('guest_id')
+                                                    ->label('Search Existing Guest')
+                                                    ->relationship('guest', 'name')
+                                                    ->searchable()
+                                                    ->preload()
+                                                    ->live()
+                                                    ->afterStateUpdated(function ($state, $set) {
+                                                        if (!$state) return;
+                                                        $user = \App\Models\User::find($state);
+                                                        if ($user) {
+                                                            $set('first_name', $user->first_name);
+                                                            $set('last_name', $user->last_name);
+                                                            $set('email', $user->email);
+                                                            $set('phone', $user->phone);
+                                                        }
+                                                    })
+                                                    /** RESTORED: Add New Guest Option **/
+                                                    ->createOptionForm([
+                                                        Grid::make(2)
+                                                            ->schema([
+                                                                TextInput::make('first_name')->required(),
+                                                                TextInput::make('last_name')->required(),
+                                                                TextInput::make('email')->email()->unique('users', 'email'),
+                                                                TextInput::make('phone')->tel(),
+                                                            ]),
+                                                    ])
+                                                    ->createOptionUsing(function (array $data) {
+                                                        // Satisfy the NOT NULL 'name' constraint on users table
+                                                        $data['name'] = trim($data['first_name'] . ' ' . $data['last_name']);
+                                                        $data['role'] = 'user';
+                                                        $data['password'] = \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(10));
+
+                                                        return \App\Models\User::create($data)->id;
+                                                    })
+                                                    ->columnSpan(2),
+
+                                                Toggle::make('is_primary')
+                                                    ->label('Primary?')
+                                                    ->onIcon('heroicon-m-star')
+                                                    ->offIcon('heroicon-o-star')
+                                                    ->default(false),
+                                            ]),
+
                                         Grid::make(2)
                                             ->schema([
-                                                TextInput::make('first_name')
-                                                    ->required()
-                                                    ->maxLength(255),
-                                                TextInput::make('last_name')
-                                                    ->required()
-                                                    ->maxLength(255),
-                                                TextInput::make('email')
-                                                    ->email()
-                                                    ->required()
-                                                    ->unique('users', 'email'),
-                                                TextInput::make('phone')
-                                                    ->tel()
-                                                    ->placeholder('+1 201-555-0123'),
-                                                Select::make('gender')
-                                                    ->options([
-                                                        'male' => 'Male',
-                                                        'female' => 'Female',
-                                                        'other' => 'Other',
-                                                    ]),
-                                                DatePicker::make('dob')
-                                                    ->label('Date of Birth'),
-                                                Select::make('nationality')
-                                                    ->options([
-                                                        'us' => 'American',
-                                                        'in' => 'Indian',
-                                                        // Add more as needed
-                                                    ])
-                                                    ->searchable(),
-                                                Select::make('purpose_of_visit')
-                                                    ->options([
-                                                        'leisure' => 'Leisure',
-                                                        'business' => 'Business',
-                                                    ]),
-                                                Textarea::make('guest_preferences')
-                                                    ->columnSpanFull(),
+                                                TextInput::make('first_name')->required(),
+                                                TextInput::make('last_name')->required(),
+                                                TextInput::make('email')->email(),
+                                                TextInput::make('phone')->tel(),
                                             ]),
                                     ])
-                                    // 2. This logic runs when the "Save" button in the popup is clicked
-                                    ->createOptionUsing(function (array $data) {
-                                        // Ensure the new user is created with the correct Role
-                                        $data['role'] = 'user';
-                                        $data['name'] = trim($data['first_name'] . ' ' . $data['last_name']);
-                                        // If your User model uses a password, you might want to generate a random one
-                                        $data['password'] = bcrypt(\Illuminate\Support\Str::random(10));
-
-                                        return \App\Models\User::create($data)->id;
-                                    })
-                                    ->live() // Essential: makes the field reactive
-                                    ->afterStateUpdated(function ($state, $set) {
-                                        if (! $state) return;
-
-                                        $user = \App\Models\User::find($state);
-
-                                        if ($user) {
-                                            $set('first_name', $user->first_name);
-                                            $set('last_name', $user->last_name);
-                                            $set('email', $user->email);
-                                            $set('phone', $user->phone);
-                                        }
-                                    })
+                                    ->itemLabel(fn(array $state): ?string => ($state['first_name'] ?? '') . ' ' . ($state['last_name'] ?? ''))
+                                    ->collapsible()
+                                    ->defaultItems(1)
+                                    ->addActionLabel('Add more Guest[s]')
                                     ->columnSpanFull(),
-                                TextInput::make('first_name')->required(),
-                                TextInput::make('last_name')->required(),
-                                TextInput::make('email')->email(),
-                                TextInput::make('phone')->tel(),
-                            ])->columns(2),
+                            ]),
 
+                        // Inside the form() method, update the Stay Details Tab:
                         Tab::make('Stay Details')
                             ->icon('heroicon-m-calendar')
                             ->schema([
-                                DatePicker::make('check_in')
-                                    ->label('Arrival Date')
-                                    ->required()
-                                    ->live()
-                                    ->afterStateUpdated(fn($state, $set, $get) => self::updateNights($state, $get('check_out'), $set)),
-                                DatePicker::make('check_out')
-                                    ->label('Departure Date')
-                                    ->required()
-                                    ->live()
-                                    ->afterStateUpdated(fn($state, $set, $get) => self::updateNights($get('check_in'), $state, $set)),
-                                Select::make('room_type_id')
-                                    ->relationship('roomType', 'name')
-                                    ->required(),
-                                TextInput::make('adults')
-                                    ->label('Number of Guests')
-                                    ->numeric()
-                                    ->default(1),
-                                Select::make('rate_plan')
-                                    ->label('Rate Management')
-                                    ->options([
-                                        'standard' => 'Standard Rate',
-                                        'promo' => 'Promotional Code',
-                                        'corp' => 'Corporate Rate',
+                                Section::make()
+                                    ->schema([
+                                        Select::make('hotel_id')
+                                            ->label('Select Hotel')
+                                            ->relationship('hotel', 'name')
+                                            ->required()
+                                            ->searchable()
+                                            ->preload()
+                                            ->live()
+                                            ->columnSpanFull(),
+
+                                        Grid::make(2)
+                                            ->schema([
+                                                DatePicker::make('check_in')
+                                                    ->label('Arrival Date')
+                                                    ->required()
+                                                    ->live()
+                                                    ->afterStateUpdated(fn($state, $set, $get) => self::updateNights($state, $get('check_out'), $set)),
+
+                                                DatePicker::make('check_out')
+                                                    ->label('Departure Date')
+                                                    ->required()
+                                                    ->live()
+                                                    ->afterStateUpdated(fn($state, $set, $get) => self::updateNights($get('check_in'), $state, $set)),
+
+                                                Select::make('room_type_id')
+                                                    ->label('Room Type')
+                                                    ->placeholder('Select a hotel first')
+                                                    ->options(function (callable $get) {
+                                                        $hotelId = $get('hotel_id');
+                                                        if (!$hotelId) return [];
+
+                                                        return \App\Models\RoomType::pluck('name', 'id');
+                                                    })
+                                                    ->required()
+                                                    ->live(), // Important: Must be live for Room No to react
+
+                                                Select::make('room_no')
+                                                    ->label('Room No')
+                                                    ->placeholder('Select a room type first')
+                                                    ->options(function (callable $get) {
+                                                        $roomTypeId = $get('room_type_id');
+                                                        if (!$roomTypeId) return [];
+
+                                                        // This must return an array where the KEY matches what is in your DB
+                                                        return \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                            ->pluck('room_number', 'room_number')
+                                                            ->toArray();
+                                                    })
+                                                    ->required()
+                                                    ->searchable()
+                                                    ->live(),
+                                            ]),
                                     ]),
-                            ])->columns(2),
+                            ]),
 
                         Tab::make('Payment Information')
                             ->icon('heroicon-m-credit-card')
@@ -183,11 +203,37 @@ class ReservationResource extends Resource
         return $table
             ->striped()
             ->columns([
-                Tables\Columns\TextColumn::make('id')->label('Reservation Number')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('full_name')
+                Tables\Columns\TextColumn::make('reservation_number')
+                    ->label('Reservation Number')
+                    ->searchable()
+                    ->sortable()
+                    ->copyable() // Optional: allows staff to click to copy
+                    ->weight('bold'),
+                Tables\Columns\TextColumn::make('primary_guest_name')
                     ->label('Guest Name')
-                    ->state(fn($record) => trim("{$record->first_name} {$record->last_name}"))
-                    ->searchable(['first_name', 'last_name']),
+                    ->state(function ($record) {
+                        // Fetch the guest marked as primary from the relationship
+                        $primaryGuest = $record->reservationGuests()
+                            ->where('is_primary', true)
+                            ->first();
+
+                        // Fallback to the first guest if no primary is marked, or a placeholder
+                        if ($primaryGuest) {
+                            return trim("{$primaryGuest->first_name} {$primaryGuest->last_name}");
+                        }
+
+                        $firstGuest = $record->reservationGuests()->first();
+                        return $firstGuest
+                            ? trim("{$firstGuest->first_name} {$firstGuest->last_name}")
+                            : 'No Guest Assigned';
+                    })
+                    // Ensure the column remains searchable via the related table
+                    ->searchable(query: function ($query, string $search) {
+                        $query->whereHas('reservationGuests', function ($q) use ($search) {
+                            $q->where('first_name', 'ilike', "%{$search}%")
+                                ->orWhere('last_name', 'ilike', "%{$search}%");
+                        });
+                    }),
                 Tables\Columns\TextColumn::make('check_in')->label('Arrival Date')->date()->sortable(),
                 Tables\Columns\TextColumn::make('check_out')->label('Departure Date')->date()->sortable(),
                 Tables\Columns\TextColumn::make('roomType.name')->label('Room Type'),

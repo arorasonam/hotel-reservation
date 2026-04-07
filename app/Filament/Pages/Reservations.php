@@ -50,78 +50,28 @@ class Reservations extends Page
 
     private function loadReservations(): array
     {
-        $resCols = Schema::getColumnListing((new Reservation)->getTable());
+        return Reservation::with(['reservationGuests'])
+            ->whereIn('status', ['confirmed', 'tentative', 'waitlist', 'checked_in'])
+            ->get()
+            ->map(function ($res) {
+                // Get Primary Guest or fallback to first guest
+                $primary = $res->reservationGuests->where('is_primary', true)->first()
+                    ?? $res->reservationGuests->first();
 
-        $query = Reservation::query();
-
-        // Only filter by status if the column exists
-        if (in_array('status', $resCols)) {
-            $query->whereIn('status', ['confirmed', 'tentative', 'waitlist', 'checked_in']);
-        }
-
-        // Try eager-loading room relation (may not exist on the model)
-        try {
-            $query->with('room');
-        } catch (\Throwable) {
-        }
-
-        return $query->get()->map(function ($res) use ($resCols) {
-
-            $col = fn(string $c, mixed $def = null) =>
-            in_array($c, $resCols) ? ($res->{$c} ?? $def) : $def;
-
-            $checkIn  = $col('check_in');
-            $checkOut = $col('check_out');
-            $nights   = ($checkIn && $checkOut)
-                ? max(1, (int) Carbon::parse($checkIn)->diffInDays(Carbon::parse($checkOut)))
-                : max(1, (int) $col('nights', 1));
-
-            $status = $col('status', 'confirmed');
-            $rate   = (float) $col('rate', 0);
-
-            // Room relation
-            $roomModel = null;
-            try {
-                $roomModel = $res->room;
-            } catch (\Throwable) {
-            }
-
-            // Room number — try every common column name
-            $roomNo = $col('room_no')
-                ?? $col('room_number')
-                ?? $col('room_id')
-                ?? $roomModel?->room_number;
-
-            // Guest name — try every common column name
-            $firstName = $col('first_name') ?: $col('guest_first_name', '');
-            $lastName  = $col('last_name')  ?: $col('guest_last_name', '');
-            $email     = $col('email', '');
-            $phone     = $col('phone') ?: $col('mobile', '');
-            $source    = $col('source') ?: $col('booking_source', 'Direct');
-
-            return [
-                'id'             => $res->id,
-                'reservation_id' => '#RES' . str_pad($res->id, 7, '0', STR_PAD_LEFT),
-                'ref_id'         => $col('ref_id', $res->id),
-                'room_no'        => (string) ($roomNo ?? ''),
-                'room_type'      => $roomModel?->roomType?->name ?? $col('room_type', ''),
-                'check_in'       => $checkIn  ? Carbon::parse($checkIn)->format('Y-m-d')  : null,
-                'check_out'      => $checkOut ? Carbon::parse($checkOut)->format('Y-m-d') : null,
-                'nights'         => $nights,
-                'title'          => $col('title', ''),
-                'first_name'     => $firstName,
-                'last_name'      => $lastName,
-                'email'          => $email,
-                'phone'          => $phone,
-                'rate'           => $rate,
-                'outstanding'    => (float) $col('outstanding', $rate * $nights),
-                'source'         => $source,
-                'status'         => $status,
-                'booking_type'   => $this->mapBookingType($status),
-                'verified'       => in_array($status, ['confirmed', 'checked_in']),
-                'adults'         => (int) ($col('adults') ?: $col('pax', 1)),
-            ];
-        })->toArray();
+                return [
+                    'id'             => $res->id,
+                    'reservation_id' => $res->reservation_number, // The GRA_0000001 format
+                    'room_no'        => (string) $res->room_no,
+                    'first_name'     => $primary?->first_name ?? 'Guest',
+                    'last_name'      => $primary?->last_name ?? '',
+                    'check_in'       => $res->check_in ? Carbon::parse($res->check_in)->format('Y-m-d') : null,
+                    'check_out'      => $res->check_out ? Carbon::parse($res->check_out)->format('Y-m-d') : null,
+                    'nights'         => $res->nights ?? 1,
+                    'status'         => $res->status,
+                    'booking_type'   => $this->mapBookingType($res->status),
+                    'verified'       => in_array($res->status, ['confirmed', 'checked_in']),
+                ];
+            })->toArray();
     }
 
     private function countVacantRooms(): int
