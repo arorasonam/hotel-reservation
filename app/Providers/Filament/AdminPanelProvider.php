@@ -33,6 +33,7 @@ class AdminPanelProvider extends PanelProvider
             // ->colors([
             //     'primary' => Color::Amber,
             // ])
+            ->brandName('Hotel Reservation')
             ->colors([
                 'primary' => Color::Slate, // Professional dark base
                 'info' => Color::Blue,
@@ -49,8 +50,9 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
-                AccountWidget::class,
-                FilamentInfoWidget::class,
+                // AccountWidget::class,
+                // FilamentInfoWidget::class,
+                \App\Filament\Widgets\StatsOverview::class
             ])->darkMode(false)
             ->middleware([
                 EncryptCookies::class,

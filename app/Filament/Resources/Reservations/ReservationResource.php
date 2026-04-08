@@ -26,6 +26,7 @@ use Filament\Forms\Set;
 use BackedEnum;
 use UnitEnum;
 use Filament\Forms\Get;
+use Illuminate\Database\Eloquent\Builder;
 
 class ReservationResource extends Resource
 {
@@ -121,7 +122,20 @@ class ReservationResource extends Resource
                                     ->schema([
                                         Select::make('hotel_id')
                                             ->label('Select Hotel')
-                                            ->relationship('hotel', 'name')
+                                            ->relationship(
+                                                name: 'hotel',
+                                                titleAttribute: 'name',
+                                                modifyQueryUsing: function (Builder $query) {
+                                                    $user = auth()->user();
+
+                                                    // Apply filter if user is a hotel_admin with a specific group
+                                                    if ($user->hasRole('hotel_admin') && $user->hotel_group_id) {
+                                                        return $query->where('hotel_group_id', $user->hotel_group_id);
+                                                    }
+
+                                                    return $query;
+                                                }
+                                            )
                                             ->required()
                                             ->searchable()
                                             ->preload()
