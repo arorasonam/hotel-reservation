@@ -75,6 +75,8 @@ class ReservationResource extends Resource
                                                             $set('last_name', $guest->last_name);
                                                             $set('email', $guest->email);
                                                             $set('phone', $guest->phone);
+                                                            $set('birthday', $guest->birthday);
+                                                            $set('nationality', $guest->nationality);
                                                         }
                                                     })
                                                     ->createOptionForm([
@@ -84,6 +86,8 @@ class ReservationResource extends Resource
                                                                 TextInput::make('last_name')->required(),
                                                                 TextInput::make('email')->email()->unique('guests', 'email'),
                                                                 TextInput::make('phone')->tel(),
+                                                                DatePicker::make('birthday')->date(),
+                                                                TextInput::make('nationality')->placeholder('e.g., American, Canadian'),
                                                             ]),
                                                     ])
                                                     ->createOptionUsing(function (array $data) {
