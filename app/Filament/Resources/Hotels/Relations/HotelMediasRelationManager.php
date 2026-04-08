@@ -45,7 +45,9 @@ class HotelMediasRelationManager extends RelationManager
                             ->visibility('public')
                             ->columnSpanFull(),
                         Select::make('hotel_room_id')->label('Hotel Room')->options(fn($livewire) => HotelRoom::query()->where('hotel_id', $livewire->ownerRecord->id)
-                            ->pluck('name', 'id')
+                            ->with('roomType')
+                            ->get()
+                            ->pluck('roomType.name', 'id')
                             ->toArray())
                             ->nullable()
                             ->searchable()->columnSpanFull(),
@@ -63,7 +65,7 @@ class HotelMediasRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('id')->label('ID')->sortable()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('type')->label('Type')->searchable()->sortable()->badge()->color('info'),
-                TextColumn::make('hotelRoom.name')->label('Room')->placeholder('-')->searchable()->sortable(),
+                TextColumn::make('hotelRoom.roomType.name')->label('Room')->placeholder('-')->searchable()->sortable(),
                 ImageColumn::make('url')->label('Preview'),
                 TextColumn::make('created_at')->label('Created')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -89,7 +91,7 @@ class HotelMediasRelationManager extends RelationManager
                             ->columns(1)
                             ->schema([
                                 TextEntry::make('type')->label('Media Type')->badge(),
-                                TextEntry::make('hotelRoom.name')->label('Hotel Room')->badge()->color('info')->placeholder('-'),
+                                TextEntry::make('hotelRoom.roomType.name')->label('Hotel Room')->badge()->color('info')->placeholder('-'),
                                 TextEntry::make('created_at')->label('Created At')->dateTime()->icon('heroicon-o-clock'),
                                 TextEntry::make('updated_at')->label('Updated At')->dateTime()->icon('heroicon-o-clock'),
                             ]),
