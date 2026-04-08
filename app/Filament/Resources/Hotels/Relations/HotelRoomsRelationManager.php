@@ -19,6 +19,10 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\BulkAction;
 
 class HotelRoomsRelationManager extends RelationManager
 {
@@ -90,6 +94,7 @@ class HotelRoomsRelationManager extends RelationManager
 
                 TextColumn::make('roomType.name')
                     ->label('Type')
+                    ->searchable()
                     ->sortable(),
 
                 TextColumn::make('floor')
@@ -100,6 +105,7 @@ class HotelRoomsRelationManager extends RelationManager
 
                 TextColumn::make('status')
                     ->badge()
+                    ->searchable()
                     ->color(fn(string $state): string => match ($state) {
                         'vacant' => 'success',
                         'occupied' => 'danger',
@@ -123,9 +129,59 @@ class HotelRoomsRelationManager extends RelationManager
                 CreateAction::make(),
             ])
             ->actions([
+                  Action::make('changeStatus')
+                    ->label('Status')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('secondary')
+                    ->form([
+                        Select::make('status')
+                            ->options([
+                                'vacant' => 'Vacant',
+                                'occupied' => 'Occupied',
+                                'dirty' => 'Dirty',
+                                'maint_blk' => 'Maintenance Block',
+                            ])
+                            ->required(),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $record->update([
+                            'status' => $data['status'],
+                        ]);
+                    }),
                 ViewAction::make()->iconButton()->tooltip('View')->color('secondary'),
                 EditAction::make()->iconButton()->tooltip('Edit')->color('primary'),
                 DeleteAction::make()->iconButton()->tooltip('Delete')->color('danger'),
+
+            ])->bulkActions([
+                    BulkActionGroup::make([
+                        BulkAction::make('deleteSelected')
+                            ->label('Delete Selected')
+                            ->color('danger')
+                            ->requiresConfirmation()
+                            ->action(fn ($records) => $records->each->delete()),
+
+                        BulkAction::make('changeStatus')
+                            ->label('Change Status')
+                            ->form([
+                                Select::make('status')
+                                    ->label('Select Status')
+                                    ->options([
+                                        'vacant' => 'Vacant',
+                                    'occupied' => 'Occupied',
+                                    'dirty' => 'Dirty',
+                                    'maint_blk' => 'Maintenance Block',
+                                ])
+                                ->required(),
+                        ])
+                        ->action(function ($records, array $data) {
+                            foreach ($records as $record) {
+                                $record->update([
+                                    'status' => $data['status'],
+                                ]);
+                            }
+                        })
+                        ->deselectRecordsAfterCompletion(),
+                 ])
             ]);
     }
 
