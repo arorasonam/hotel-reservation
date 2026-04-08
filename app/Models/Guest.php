@@ -11,7 +11,8 @@ class Guest extends Model
         'email',
         'phone',
         'birthday',
-        'nationality'
+        'nationality',
+        'profile_photo',
     ];
 
     protected $appends = ['name'];

@@ -25,6 +25,9 @@ use UnitEnum;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Textarea;
 use Filament\Schemas\Components\Group;
+use Filament\Forms\Components\FileUpload;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Infolists\Components\ImageEntry;
 
 class GuestResource extends Resource
 {
@@ -56,6 +59,16 @@ class GuestResource extends Resource
 
                         Tab::make('Personal Information')
                             ->schema([
+
+                                FileUpload::make('profile_photo')
+                                    ->label('Profile Picture')
+                                    ->image()
+                                    ->disk('public')   // REQUIRED
+                                    ->directory('guest-profile-photos')
+                                    ->imageEditor()
+                                    ->circleCropper()
+                                    ->avatar()
+                                    ->nullable(),
 
                                 TextInput::make('first_name')
                                     ->required(),
@@ -124,7 +137,7 @@ class GuestResource extends Resource
     {
         return $table
             ->columns([
-
+    
                 TextColumn::make('first_name')
                     ->label('First Name')
                     ->searchable(),
@@ -173,8 +186,11 @@ class GuestResource extends Resource
 
                         Tab::make('Personal Information')
                             ->schema([
+                                TextEntry::make('first_name'),
 
-                                TextEntry::make('name'),
+                                TextEntry::make('first_name'),
+
+                                TextEntry::make('last_name'),
 
                                 TextEntry::make('email'),
 
