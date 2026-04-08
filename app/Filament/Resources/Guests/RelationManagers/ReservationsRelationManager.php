@@ -17,11 +17,12 @@ class ReservationsRelationManager extends RelationManager
         return $table
             ->columns([
 
-                TextColumn::make('room.name'),
+                TextColumn::make('roomType.name')
+                ->label('Room'),
+                
+                TextColumn::make('check_in')->date(),
 
-                TextColumn::make('checkin_date')->date(),
-
-                TextColumn::make('checkout_date')->date(),
+                TextColumn::make('check_out')->date(),
 
                 TextColumn::make('status')->badge(),
 

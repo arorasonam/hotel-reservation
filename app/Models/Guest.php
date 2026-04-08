@@ -33,7 +33,12 @@ class Guest extends Model
 
     public function reservations()
     {
-        return $this->hasMany(Reservation::class);
+        return $this->belongsToMany(
+            Reservation::class,
+            'reservation_guests',
+            'guest_id',
+            'reservation_id'
+        );
     }
 
     public function getLastStayDateAttribute()
