@@ -23,6 +23,7 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\BulkAction;
+use Filament\Tables\Filters\SelectFilter;
 
 class HotelRoomsRelationManager extends RelationManager
 {
@@ -182,6 +183,29 @@ class HotelRoomsRelationManager extends RelationManager
                         })
                         ->deselectRecordsAfterCompletion(),
                  ])
+            ])->filters([
+                SelectFilter::make('floor')
+                    ->label('Floor')
+                    ->options(fn () => 
+                        \App\Models\HotelRoom::query()
+                            ->where('hotel_id', $this->getOwnerRecord()->id)
+                            ->distinct()
+                            ->pluck('floor', 'floor')
+                            ->toArray()
+                    ),
+
+                SelectFilter::make('room_type_id')
+                    ->label('Room Type')
+                    ->relationship('roomType', 'name'),
+
+                SelectFilter::make('status')
+                    ->label('Status')
+                    ->options([
+                        'vacant' => 'Vacant',
+                        'occupied' => 'Occupied',
+                        'dirty' => 'Dirty',
+                        'maint_blk' => 'Maintenance Block',
+                    ]),
             ]);
     }
 
