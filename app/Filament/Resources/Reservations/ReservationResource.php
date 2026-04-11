@@ -261,6 +261,9 @@ class ReservationResource extends Resource
                         'cancelled' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('total_pos_charges')
+                        ->label('POS Charges')
+                        ->money('INR')
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')

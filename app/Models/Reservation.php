@@ -75,4 +75,16 @@ class Reservation extends Model
     {
         return $this->belongsTo(Hotel::class);
     }
+
+    public function posOrders()
+    {
+        return $this->hasMany(PosOrder::class);
+    }
+
+    public function getTotalPosChargesAttribute()
+    {
+        return $this->posOrders()
+            ->where('status', '!=', 'cancelled')
+            ->sum('grand_total');
+    }
 }
