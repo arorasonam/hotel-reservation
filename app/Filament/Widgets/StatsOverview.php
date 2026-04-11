@@ -13,6 +13,8 @@ class StatsOverview extends BaseWidget // Extend BaseWidget
 {
     // REMOVE the protected string $view line entirely.
     // BaseWidget handles the view for you automatically.
+   
+    protected static ?int $sort = 3;
 
     protected function getStats(): array
     {
