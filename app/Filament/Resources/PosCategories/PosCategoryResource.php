@@ -20,6 +20,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;
+use UnitEnum;
 
 class PosCategoryResource extends Resource
 {
@@ -27,21 +28,25 @@ class PosCategoryResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
+    protected static UnitEnum|string|null $navigationGroup = 'POS';
+
     protected static ?string $recordTitleAttribute = 'Pos Category';
 
-     public static function form(Schema $schema): Schema
+    protected static ?int $navigationSort = 2;
+
+    public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
                 Select::make('pos_outlet_id')
-                ->relationship('outlet', 'name')
-                ->required(),
+                    ->relationship('outlet', 'name')
+                    ->required(),
 
-            TextInput::make('name')
-                ->required(),
+                TextInput::make('name')
+                    ->required(),
 
-            Toggle::make('status')
-                ->default(true),
+                Toggle::make('status')
+                    ->default(true),
             ]);
     }
 

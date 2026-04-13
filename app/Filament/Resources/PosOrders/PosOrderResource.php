@@ -24,6 +24,7 @@ use Illuminate\Support\Str;
 use Filament\Forms\Components\Repeater;
 use App\Models\Reservation;
 use Filament\Resources\Pages\CreateRecord;
+use UnitEnum;
 
 class PosOrderResource extends Resource
 {
@@ -31,18 +32,21 @@ class PosOrderResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
+    protected static UnitEnum|string|null $navigationGroup = 'POS';
+
     protected static ?string $recordTitleAttribute = 'POS Order';
 
+    protected static ?int $navigationSort = 3;
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
                 TextInput::make('order_number')
-                ->default(fn () => 'POS-' . now()->format('YmdHisv'))
-                ->disabled()
-                ->dehydrated()
-                ->required(),
+                    ->default(fn() => 'POS-' . now()->format('YmdHisv'))
+                    ->disabled()
+                    ->dehydrated()
+                    ->required(),
 
                 Select::make('pos_outlet_id')
                     ->relationship('outlet', 'name')
@@ -57,12 +61,12 @@ class PosOrderResource extends Resource
                     ->live()
                     ->required(),
 
-                 Select::make('reservation_id')
+                Select::make('reservation_id')
                     ->relationship(
                         name: 'reservation',
                         titleAttribute: 'id',
-                        modifyQueryUsing: fn ($query) =>
-                            $query->where('status', 'confirmed')
+                        modifyQueryUsing: fn($query) =>
+                        $query->where('status', 'confirmed')
                     )
                     ->searchable(['id', 'reservation_number'])
                     ->getSearchResultsUsing(function (string $search) {
@@ -76,21 +80,21 @@ class PosOrderResource extends Resource
                                     ->orWhere('room_no', 'like', "%{$search}%")
                                     ->orWhere('first_name', 'like', "%{$search}%")
                                     ->orWhere('last_name', 'like', "%{$search}%");
-                                    // ->orWhereHas('guest', fn ($q) =>
-                                    //         $q->where('first_name', 'like', "%{$search}%")
-                                    //         ->orWhere('last_name', 'like', "%{$search}%")
-                                    // );
+                                // ->orWhereHas('guest', fn ($q) =>
+                                //         $q->where('first_name', 'like', "%{$search}%")
+                                //         ->orWhere('last_name', 'like', "%{$search}%")
+                                // );
 
                             })
                             ->limit(50)
                             ->get()
-                            ->mapWithKeys(fn ($record) => [
+                            ->mapWithKeys(fn($record) => [
                                 $record->id =>
-                                    "Room {$record->room_no} - {$record->first_name} {$record->last_name} - RES#{$record->reservation_number}"
+                                "Room {$record->room_no} - {$record->first_name} {$record->last_name} - RES#{$record->reservation_number}"
                             ]);
                     })
                     ->reactive()
-                     ->getOptionLabelUsing(function ($value): ?string {
+                    ->getOptionLabelUsing(function ($value): ?string {
 
                         $reservation = Reservation::find($value);
 
@@ -116,69 +120,68 @@ class PosOrderResource extends Resource
                             }
                             $set('guest_id', $reservation->guest_id);
                         }
-
                     })
-                    ->visible(fn ($get) => $get('order_type') === 'room_charge')
-                    ->required(fn ($get) => $get('order_type') === 'room_charge'),
+                    ->visible(fn($get) => $get('order_type') === 'room_charge')
+                    ->required(fn($get) => $get('order_type') === 'room_charge'),
 
-                    Select::make('room_id')
-                        ->relationship('room', 'room_number')
-                        ->disabled(fn ($get) => $get('order_type') === 'room_charge')
-                        ->dehydrated(),
+                Select::make('room_id')
+                    ->relationship('room', 'room_number')
+                    ->disabled(fn($get) => $get('order_type') === 'room_charge')
+                    ->dehydrated(),
 
-                    Select::make('guest_id')
-                        ->relationship('guest', 'first_name')
-                        ->disabled(fn ($get) => $get('order_type') === 'room_charge')
-                        ->searchable()
-                        ->dehydrated(),
+                Select::make('guest_id')
+                    ->relationship('guest', 'first_name')
+                    ->disabled(fn($get) => $get('order_type') === 'room_charge')
+                    ->searchable()
+                    ->dehydrated(),
 
-                    Repeater::make('items')
+                Repeater::make('items')
                     ->relationship()
                     ->schema([
 
-                    Select::make('pos_item_id')
-                        ->relationship('item', 'name')
-                        ->reactive()
-                        ->afterStateUpdated(function ($state, callable $set) {
+                        Select::make('pos_item_id')
+                            ->relationship('item', 'name')
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
 
-                            $item = \App\Models\PosItem::find($state);
+                                $item = \App\Models\PosItem::find($state);
 
-                            if ($item) {
-                                $set('price', $item->price);
-                            }
-                        })
-                        ->required(),
+                                if ($item) {
+                                    $set('price', $item->price);
+                                }
+                            })
+                            ->required(),
 
-                    TextInput::make('quantity')
-                        ->numeric()
-                        ->default(1)
-                        ->reactive()
-                        ->required(),
+                        TextInput::make('quantity')
+                            ->numeric()
+                            ->default(1)
+                            ->reactive()
+                            ->required(),
 
-                    TextInput::make('price')
-                        ->numeric()
-                        ->required(),
+                        TextInput::make('price')
+                            ->numeric()
+                            ->required(),
 
-                    TextInput::make('tax')
-                        ->numeric()
-                        ->default(0),
+                        TextInput::make('tax')
+                            ->numeric()
+                            ->default(0),
 
-                    TextInput::make('total')
-                        ->numeric()
-                        ->disabled(),
+                        TextInput::make('total')
+                            ->numeric()
+                            ->disabled(),
 
-                ])
-                ->columns(5)
-                ->required(),
+                    ])
+                    ->columns(5)
+                    ->required(),
             ]);
     }
 
-   public static function table(Table $table): Table
+    public static function table(Table $table): Table
     {
         return $table
             ->columns([
                 TextColumn::make('reservation.reservation_number')
-                ->label('Reservation'),
+                    ->label('Reservation'),
 
                 TextColumn::make('room.room_number')
                     ->label('Room No'),

@@ -19,6 +19,7 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
+use UnitEnum;
 
 class PosOutletResource extends Resource
 {
@@ -26,26 +27,30 @@ class PosOutletResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
+    protected static UnitEnum|string|null $navigationGroup = 'POS';
+
     protected static ?string $recordTitleAttribute = 'POS Outlet';
+
+    protected static ?int $navigationSort = 1;
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
 
-            TextInput::make('name')
-                ->required(),
+                TextInput::make('name')
+                    ->required(),
 
-            TextInput::make('code')
-                ->required()
-                ->unique(ignoreRecord: true),
+                TextInput::make('code')
+                    ->required()
+                    ->unique(ignoreRecord: true),
 
-            Textarea::make('description'),
+                Textarea::make('description'),
 
-            Toggle::make('status')
-                ->default(true)
+                Toggle::make('status')
+                    ->default(true)
 
-        ]);
+            ]);
     }
 
     public static function table(Table $table): Table
