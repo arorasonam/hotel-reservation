@@ -20,6 +20,10 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Filament\Support\Enums\Width;
+use Filament\Pages\Auth\RequestPasswordReset;
+use Filament\Pages\Auth\ResetPassword;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -30,6 +34,25 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->passwordReset()
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+                fn () => Blade::render('
+                    <div class="text-center text-xs text-gray-500 mt-6">
+                        © {{ date("Y") }} Hotel Reservation System. All rights reserved.
+                    </div>
+                    <style>
+                        body {
+                            background-image: url("{{ asset("images/login-bg.jpg") }}");
+                            background-size: cover;
+                            background-position: center;
+                            background-repeat: no-repeat;
+                        }
+                    </style>
+                ')
+            )
+            ->brandLogo(asset('images/logo.jpg'))
+            ->brandLogoHeight('60px')
             // ->colors([
             //     'primary' => Color::Amber,
             // ])
