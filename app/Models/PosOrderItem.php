@@ -12,7 +12,10 @@ class PosOrderItem extends Model
         'pos_item_id',
         'quantity',
         'price',
-        'tax',
+        'tax_id',
+        'tax_amount',
+        'tax_percentage',
+        'subtotal',
         'total'
     ];
 
@@ -28,12 +31,12 @@ class PosOrderItem extends Model
 
     protected static function booted()
     {
-        static::creating(function ($item) {
-            $item->total = $item->quantity * $item->price;
-        });
+        // static::creating(function ($item) {
+        //     $item->total = $item->quantity * $item->price;
+        // });
 
-        static::updating(function ($item) {
-            $item->total = $item->quantity * $item->price;
-        });
+        // static::updating(function ($item) {
+        //     $item->total = $item->quantity * $item->price;
+        // });
     }
 }

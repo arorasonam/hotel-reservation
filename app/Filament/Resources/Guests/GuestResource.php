@@ -188,8 +188,6 @@ class GuestResource extends Resource
                             ->schema([
                                 TextEntry::make('first_name'),
 
-                                TextEntry::make('first_name'),
-
                                 TextEntry::make('last_name'),
 
                                 TextEntry::make('email'),
@@ -223,7 +221,7 @@ class GuestResource extends Resource
                             ]),
 
                     ])
-
+                    ->columns(3),
             ]);
     }
 

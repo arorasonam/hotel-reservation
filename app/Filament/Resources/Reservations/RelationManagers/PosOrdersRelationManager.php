@@ -6,12 +6,17 @@ use App\Filament\Resources\Reservations\ReservationResource;
 use Filament\Actions\CreateAction;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Table;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables;
 
 class PosOrdersRelationManager extends RelationManager
 {
     protected static string $relationship = 'PosOrders';
 
-    protected static ?string $relatedResource = ReservationResource::class;
+    protected static ?string $title = 'POS Orders';
+
+    // protected static ?string $relatedResource = ReservationResource::class;
 
     public function table(Table $table): Table
     {
@@ -26,9 +31,14 @@ class PosOrdersRelationManager extends RelationManager
 
                 TextColumn::make('created_at')
                     ->dateTime(),
-            ])
-            ->headerActions([
-                CreateAction::make(),
+            ])->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->options([
+                        'draft'     => 'Draft',
+                        'confirmed' => 'Confirmed',
+                        'paid'      => 'Paid',
+                        'cancelled' => 'Cancelled',
+                    ])
             ]);
     }
 }

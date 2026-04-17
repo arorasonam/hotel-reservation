@@ -13,4 +13,5 @@ class CreatePosOrder extends CreateRecord
     {
         $this->record->refreshTotals();
     }
+
 }

@@ -25,6 +25,12 @@ use Filament\Forms\Components\Repeater;
 use App\Models\Reservation;
 use Filament\Resources\Pages\CreateRecord;
 use UnitEnum;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Actions\DeleteAction;
+use App\Models\PosItem;
+use Filament\Forms\Components\Hidden;
 
 class PosOrderResource extends Resource
 {
@@ -42,6 +48,8 @@ class PosOrderResource extends Resource
     {
         return $schema
             ->components([
+                Hidden::make('hotel_id')->dehydrated(true),
+
                 TextInput::make('order_number')
                     ->default(fn() => 'POS-' . now()->format('YmdHisv'))
                     ->disabled()
@@ -50,6 +58,26 @@ class PosOrderResource extends Resource
 
                 Select::make('pos_outlet_id')
                     ->relationship('outlet', 'name')
+                    ->live()
+                     ->afterStateUpdated(function ($state, $set) {
+
+                        $outlet = \App\Models\PosOutlet::find($state);
+                       
+                        if ($outlet) {
+                            $set('hotel_id', $outlet->hotel_id);
+                        }
+                        
+                    })->afterStateHydrated(function ($state, $set) {
+
+                        if ($state) {
+
+                            $outlet = \App\Models\PosOutlet::find($state);
+
+                            if ($outlet) {
+                                $set('hotel_id', $outlet->hotel_id);
+                            }
+                        }
+                    })
                     ->required(),
 
                 Select::make('order_type')
@@ -90,7 +118,7 @@ class PosOrderResource extends Resource
                             ->get()
                             ->mapWithKeys(fn($record) => [
                                 $record->id =>
-                                "Room {$record->room_no} - {$record->first_name} {$record->last_name} - RES#{$record->reservation_number}"
+                                "Room {$record->room_no} - {$record->first_name} {$record->last_name} - #{$record->reservation_number}"
                             ]);
                     })
                     ->reactive()
@@ -135,20 +163,67 @@ class PosOrderResource extends Resource
                     ->searchable()
                     ->dehydrated(),
 
+                TextInput::make('discount_amount')
+                    ->numeric()
+                    ->default(0)
+                    ->label('Discount'),
+
                 Repeater::make('items')
                     ->relationship()
+                    ->columnSpanFull()
                     ->schema([
+                        Hidden::make('tax_id')
+                        ->dehydrated(true),
 
                         Select::make('pos_item_id')
                             ->relationship('item', 'name')
+                            ->options(function ($livewire) {
+
+                                $outletId = data_get($livewire->data, 'pos_outlet_id');
+
+                                if (!$outletId) {
+                                    return [];
+                                }
+
+                                return PosItem::where('pos_outlet_id', $outletId)
+                                    ->pluck('name', 'id')
+                                    ->toArray();
+                            })
                             ->reactive()
-                            ->afterStateUpdated(function ($state, callable $set) {
+                            ->disabled(fn ($livewire) => empty(data_get($livewire->data, 'pos_outlet_id')))
+                             ->afterStateUpdated(function ($state, callable $set, callable $get) {
 
                                 $item = \App\Models\PosItem::find($state);
 
-                                if ($item) {
-                                    $set('price', $item->price);
+                                if (!$item) {
+                                    return;
                                 }
+
+                               
+                                $taxId = $item->tax->id ?? null;
+                                $price = $item->price;
+                                $qty   = $get('quantity') ?? 1;
+                                $taxPercent = $item->tax->percentage ?? 0;
+
+                                $subtotal  = $price * $qty;
+                                $taxAmount = ($subtotal * $taxPercent) / 100;
+                                $total = $subtotal + $taxAmount;
+
+                                $set('tax_id', $taxId);
+                                $set('price', $price);
+                                $set('tax_percentage', $taxPercent);
+                                $set('subtotal', $subtotal);
+                                $set('tax_amount', $taxAmount);
+                                $set('total', $total);
+
+                                // if ($item->tax) {
+
+                                //     $set('tax_amount', $item->tax->percentage);
+
+                                // }
+                                // $quantity =$item->quantity ?? 1;
+
+                                // $set('total', $item->price * $quantity);
                             })
                             ->required(),
 
@@ -156,22 +231,62 @@ class PosOrderResource extends Resource
                             ->numeric()
                             ->default(1)
                             ->reactive()
+                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
+                                $price = $get('price') ?? 0;
+                                $taxPercent = $get('tax_percentage') ?? 0;
+
+                                $subtotal = $price * $state;
+                                $taxAmount = ($subtotal * $taxPercent) / 100;
+                                $total = $subtotal + $taxAmount;
+
+                                $set('subtotal', $subtotal);
+                                $set('tax_amount', $taxAmount);
+                                $set('total', $total);
+                            })
                             ->required(),
 
                         TextInput::make('price')
                             ->numeric()
-                            ->required(),
+                            ->reactive()
+                            ->required()
+                            ->disabled()
+                            ->afterStateUpdated(function (callable $set, callable $get, $state) {
 
-                        TextInput::make('tax')
+                                $qty = $get('quantity') ?? 1;
+                                $taxPercent = $get('tax_percentage') ?? 0;
+
+                                $subtotal = $state * $qty;
+                                $taxAmount = ($subtotal * $taxPercent) / 100;
+                                $total = $subtotal + $taxAmount;
+                                dd($taxAmount);
+                                $set('subtotal', $subtotal);
+                                $set('tax_amount', $taxAmount);
+                                $set('total', $total);
+                            })
+                            ->dehydrated(true),
+                        
+                        TextInput::make('tax_percentage')
                             ->numeric()
-                            ->default(0),
+                            ->disabled()
+                            ->dehydrated(true),
+                            
+                        TextInput::make('subtotal')
+                        ->numeric()
+                        ->disabled()
+                        ->dehydrated(true),
+
+                       TextInput::make('tax_amount')
+                            ->numeric()
+                            ->disabled()
+                            ->dehydrated(true),
 
                         TextInput::make('total')
                             ->numeric()
-                            ->disabled(),
+                            ->disabled()
+                            ->dehydrated(true),
 
                     ])
-                    ->columns(5)
+                    ->columns(7)
                     ->required(),
             ]);
     }
@@ -188,13 +303,60 @@ class PosOrderResource extends Resource
 
                 TextColumn::make('reservation.first_name')
                     ->label('First Name'),
+
+                TextColumn::make('payments_sum_amount')
+                    ->sum('payments', 'amount')
+                    ->label('Paid Amount')
+                    ->money('INR'),
+
+                TextColumn::make('subtotal')
+                    ->money('INR'),
+
+                TextColumn::make('tax_amount')
+                    ->money('INR'),
+
+                TextColumn::make('discount_amount')
+                    ->money('INR'),
+                    // ->maxValue(fn ($get) => $get('subtotal')),
+
+                TextColumn::make('grand_total')
+                    ->money('INR'),
+                
+                TextColumn::make('status')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'confirmed' => 'info',
+                        'draft' => 'warning',
+                        'paid' => 'success',
+                        'cancelled' => 'danger',
+                        default => 'gray',
+                    }),
+
+            ])->recordActions([
+               
+                Action::make('confirmOrder')
+                ->label('Confirm')
+                ->icon('heroicon-o-check-circle')
+                ->visible(fn ($record) => $record->status === 'draft')
+                ->action(function ($record) {
+
+                    $record->update([
+                        'status' => 'confirmed'
+                    ]);
+
+                }),
+
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
             ]);
     }
 
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\PaymentsRelationManager::class,
+            // RelationManagers\ItemsRelationManager::class,
         ];
     }
 
@@ -204,6 +366,7 @@ class PosOrderResource extends Resource
             'index' => ListPosOrders::route('/'),
             'create' => CreatePosOrder::route('/create'),
             'edit' => EditPosOrder::route('/{record}/edit'),
+            'view' => Pages\ViewPosOrder::route('/{record}'),
         ];
     }
 
@@ -224,5 +387,38 @@ class PosOrderResource extends Resource
             'subtotal' => $subtotal,
             'grand_total' => $grandTotal,
         ]);
+    }
+
+    protected static function mutateFormDataBeforeCreate(array $data): array
+    {
+        $subtotal = 0;
+
+        $taxAmount = 0;
+
+        foreach ($data['items'] as &$item) {
+
+            $itemSubtotal = $item['price'] * $item['quantity'];
+
+            $itemTax = ($itemSubtotal * $item['tax']) / 100;
+
+            $item['total'] = $itemSubtotal + $itemTax;
+
+            $subtotal += $itemSubtotal;
+
+            $taxAmount += $itemTax;
+        }
+
+        $discount = $data['discount_amount'] ?? 0;
+
+        $data['subtotal'] = $subtotal;
+
+        $data['tax_amount'] = $taxAmount;
+
+        $data['grand_total'] =
+            $subtotal + $taxAmount - $discount;
+
+        $data['created_by'] = auth()->id();
+
+        return $data;
     }
 }

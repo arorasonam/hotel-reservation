@@ -59,13 +59,29 @@ class PosOrder extends Model
 
     public function refreshTotals()
     {
-        $subtotal = $this->items->sum(fn ($item) =>
-            $item->price * $item->quantity
-        );
+        // $subtotal = $this->items->sum(fn ($item) =>
+        //     $item->price * $item->quantity
+        // );
+
+        $subtotal = 0;
+        $taxAmount = 0;
+        $grandTotal = 0;
+
+        foreach ($this->items ?? [] as $item) {
+            $subtotal += $item->subtotal ?? 0;
+            $taxAmount += $item->tax_amount ?? 0;
+            $grandTotal += $item->total ?? 0;
+        }
 
         $this->update([
             'subtotal' => $subtotal,
-            'grand_total' => $subtotal,
+            'grand_total' => $grandTotal,
+            'tax_amount' => $taxAmount
         ]);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(PosPayment::class);
     }
 }
