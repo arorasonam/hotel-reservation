@@ -33,6 +33,7 @@ use Filament\Infolists\Infolist;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
+use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
 
 class ReservationResource extends Resource
 {
@@ -313,7 +314,8 @@ class ReservationResource extends Resource
     public static function getRelations(): array
     {
         return [
-            PosOrdersRelationManager::class
+            PosOrdersRelationManager::class,
+            FoliosRelationManager::class
         ];
     }
 

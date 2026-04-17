@@ -87,4 +87,14 @@ class Reservation extends Model
             ->where('status', '!=', 'cancelled')
             ->sum('grand_total');
     }
+
+    public function folios()
+    {
+        return $this->hasMany(ReservationFolio::class);
+    }
+
+    public function getTotalFolioAmountAttribute()
+    {
+        return $this->folios()->sum('amount');
+    }
 }

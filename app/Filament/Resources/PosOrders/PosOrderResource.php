@@ -349,6 +349,22 @@ class PosOrderResource extends Resource
                 ViewAction::make(),
                 EditAction::make(),
                 DeleteAction::make(),
+
+                Action::make('print_invoice')
+                    ->label('Print Bill')
+                    ->icon('heroicon-o-printer')
+                    ->url(fn ($record) =>
+                        route('pos.invoice.print', $record->id)
+                    )
+                    ->openUrlInNewTab(),
+
+                Action::make('download_invoice')
+                    ->label('Download PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->url(fn ($record) =>
+                        route('pos.invoice.download', $record->id)
+                    )
+                    ->openUrlInNewTab()
             ]);
     }
 

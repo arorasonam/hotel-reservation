@@ -84,4 +84,9 @@ class PosOrder extends Model
     {
         return $this->hasMany(PosPayment::class);
     }
+
+    public function hotel()
+    {
+        return $this->belongsTo(Hotel::class);
+    }
 }

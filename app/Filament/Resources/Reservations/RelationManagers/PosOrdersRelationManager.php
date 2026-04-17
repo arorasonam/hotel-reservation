@@ -24,7 +24,14 @@ class PosOrdersRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('order_number'),
 
+                TextColumn::make('order_type'),
+
+                TextColumn::make('outlet.name'),
+                
                 TextColumn::make('grand_total')
+                    ->money('INR'),
+
+                TextColumn::make('tax_amount')
                     ->money('INR'),
 
                 TextColumn::make('status'),

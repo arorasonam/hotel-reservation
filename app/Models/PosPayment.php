@@ -29,9 +29,42 @@ class PosPayment extends Model
             if (!$order) {
                 return; // safely exit instead of breaking the process
             }
+
+            // ROOM POSTING LOGIC
+            if ($payment->payment_method === 'room_posting') {
+
+                if (!$order->reservation_id) {
+                    return;
+                }
+
+                ReservationFolio::firstOrCreate(
+                    [
+                        'source' => 'pos',
+                        'source_id' => $order->id
+                    ],
+
+                    [
+                        'reservation_id' => $order->reservation_id,
+                        'description' => 'Restaurant POS Order #' . $order->id,
+                        'amount' => $order->grand_total,
+                        'type' => 'debit',
+                        'posted_at' => now()
+                    ]
+                );
+
+                $order->update([
+                    'status' => 'confirmed'
+                ]);
+
+                return;
+            }
+
+            // NORMAL PAYMENT FLOW
+
             $paidAmount = $order->payments()->sum('amount');
-           
-            if ($payment->payment_method !== 'room_posting' && $paidAmount >= $order->grand_total) {
+
+            if ($paidAmount >= $order->grand_total) {
+
                 $order->update([
                     'status' => 'paid'
                 ]);
