@@ -90,6 +90,18 @@ class GuestResource extends Resource
 
                                 TextInput::make('nationality'),
 
+                                FileUpload::make('identity_proof')
+                                    ->label('Upload Identity Proof')
+                                    ->disk('public')   // REQUIRED
+                                    ->directory('guest-identities')
+                                    ->acceptedFileTypes([
+                                        'image/jpeg',
+                                        'image/png',
+                                        'application/pdf'
+                                    ])
+                                    ->maxSize(2048)
+                                    ->downloadable()
+                                    ->openable()
                                 // Toggle::make('vip_status')
                                 //     ->label('VIP Guest'),
 
@@ -188,8 +200,6 @@ class GuestResource extends Resource
                             ->schema([
                                 TextEntry::make('first_name'),
 
-                                TextEntry::make('first_name'),
-
                                 TextEntry::make('last_name'),
 
                                 TextEntry::make('email'),
@@ -200,7 +210,13 @@ class GuestResource extends Resource
 
                                 TextEntry::make('nationality'),
 
-                            ]),
+                                ImageEntry::make('identity_proof')
+                                    ->label('Identity Proof')
+                                    ->disk('public')
+                                    ->visibility('public')
+                                    ->openUrlInNewTab()
+
+                            ])->columns(3),
 
                         Tab::make('Preferences')
                             ->schema([
