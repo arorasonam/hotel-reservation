@@ -72,4 +72,9 @@ class PosPayment extends Model
 
         });
     }
+
+    public function reservation()
+    {
+        return $this->belongsTo(Reservation::class);
+    }
 }

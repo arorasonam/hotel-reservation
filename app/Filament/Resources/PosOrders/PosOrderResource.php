@@ -358,13 +358,13 @@ class PosOrderResource extends Resource
                     )
                     ->openUrlInNewTab(),
 
-                Action::make('download_invoice')
-                    ->label('Download PDF')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->url(fn ($record) =>
-                        route('pos.invoice.download', $record->id)
-                    )
-                    ->openUrlInNewTab()
+                // Action::make('download_invoice')
+                //     ->label('Download PDF')
+                //     ->icon('heroicon-o-arrow-down-tray')
+                //     ->url(fn ($record) =>
+                //         route('pos.invoice.download', $record->id)
+                //     )
+                //     ->openUrlInNewTab()
             ]);
     }
 

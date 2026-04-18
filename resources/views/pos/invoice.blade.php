@@ -112,7 +112,7 @@ Grand Total: Rs. {{ $order->grand_total }}
 @foreach($order->payments as $payment)
 
 <p>
-{{ ucfiRs.t($payment->payment_method) }}
+{{ ucfirst($payment->payment_method) }}
 :
 Rs. {{ $payment->amount }}
 </p>

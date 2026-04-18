@@ -21,6 +21,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Forms\Components\Repeater;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -285,6 +286,61 @@ class ReservationResource extends Resource
                 ViewAction::make(),
                 EditAction::make()->icon('heroicon-m-pencil-square'),
                 DeleteAction::make()->icon('heroicon-m-trash'),
+                // Action::make('checkoutGuest')
+                // ->label('Checkout Guest')
+                // ->icon('heroicon-o-credit-card')
+                // ->form([
+                //     Select::make('payment_method')
+                //         ->options([
+                //             'cash' => 'Cash',
+                //             'card' => 'Card',
+                //             'upi' => 'UPI',
+                //         ])
+                //         ->required(),
+
+                //     TextInput::make('amount')
+                //         ->numeric()
+                //         ->required(),
+
+                // ])
+                // ->action(function ($record, $data) {
+
+                //     if ($record->remaining_balance > 0) {
+
+                //         \Filament\Notifications\Notification::make()
+                //             ->title('Payment pending before checkout')
+                //             ->danger()
+                //             ->send();
+
+                //         return;
+                //     }
+
+                //     // Create checkout Payment
+                //     POSPayment::create([
+
+                //         'reservation_id' => $record->id,
+
+                //         'payment_method' => $data['payment_method'],
+
+                //         'amount' => $data['amount'],
+
+                //         'paid_at' => now(),
+
+                //     ]);
+
+                //     $totalCharges =
+                //         $record->folios()->sum('amount');
+
+                //     $totalPaid =
+                //         $record->payments()->sum('amount');
+
+                //     if ($totalPaid >= $totalCharges) {
+
+                //         $record->update([
+                //             'status' => 'checked_out'
+                //         ]);
+                //     }
+                // })
             ]);
     }
 

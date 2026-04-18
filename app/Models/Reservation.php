@@ -97,4 +97,17 @@ class Reservation extends Model
     {
         return $this->folios()->sum('amount');
     }
+
+    public function payments()
+    {
+        return $this->hasMany(POSPayment::class);
+    }
+
+    public function getRemainingBalanceAttribute()
+    {
+        return
+            $this->folios()->sum('amount')
+            -
+            $this->payments()->sum('amount');
+    }
 }
