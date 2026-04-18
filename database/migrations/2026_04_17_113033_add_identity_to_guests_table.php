@@ -12,7 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('guests', function (Blueprint $table) {
-            $table->string('identity_proof')->nullable()->after('email');
+            $table->string('identity_type')->nullable()->after('nationality');
+            $table->string('identity_number')->nullable()->after('identity_type');
+            $table->string('identity_document')->nullable()->after('identity_number');
+            $table->date('identity_expiry')->nullable()->after('identity_document');
+            
         });
     }
 
