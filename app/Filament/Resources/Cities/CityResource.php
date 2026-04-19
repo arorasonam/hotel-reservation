@@ -259,7 +259,7 @@ class CityResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->icon('heroicon-o-building-office-2')
-                    ->weight('medium')
+                    ->weight('mwum')
                     ->description(fn($record): string => $record->natural_name ?? 'No natural name'),
                 TextColumn::make('country.iso2')
                     ->label('Country')

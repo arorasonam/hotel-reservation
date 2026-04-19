@@ -64,4 +64,44 @@ class Hotel extends Model implements HasMedia
     {
         return $this->morphTo();
     }
+
+    /**
+     * Relationship for BookingSourcesRelationManager
+     */
+    public function bookingSources(): HasMany
+    {
+        return $this->hasMany(BookingSource::class, 'hotel_id');
+    }
+
+    /**
+     * Relationship for SourceMarketsRelationManager
+     */
+    public function sourceMarkets(): HasMany
+    {
+        return $this->hasMany(SourceMarket::class, 'hotel_id');
+    }
+
+    /**
+     * Relationship for BookingTypesRelationManager
+     */
+    public function bookingTypes(): HasMany
+    {
+        return $this->hasMany(BookingType::class, 'hotel_id');
+    }
+
+    /**
+     * Relationship for MealPlansRelationManager
+     */
+    public function mealPlans(): HasMany
+    {
+        return $this->hasMany(MealPlan::class, 'hotel_id');
+    }
+
+    /**
+     * Relationship for RoomTypes (Categories)
+     */
+    public function roomTypes(): HasMany
+    {
+        return $this->hasMany(RoomType::class, 'hotel_id');
+    }
 }

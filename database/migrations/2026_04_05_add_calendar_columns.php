@@ -85,9 +85,21 @@ return new class extends Migration
         // In practice, comment out any column your original migration already created.
 
         $resCols = [
-            'status', 'room_no', 'check_in', 'check_out', 'nights',
-            'adults', 'title', 'first_name', 'last_name', 'email',
-            'phone', 'rate', 'outstanding', 'source', 'ref_id',
+            'status',
+            'room_no',
+            'check_in',
+            'check_out',
+            'nights',
+            'adults',
+            'title',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'rate',
+            'outstanding',
+            'source',
+            'ref_id',
         ];
 
         Schema::table('reservations', function (Blueprint $table) use ($resCols) {

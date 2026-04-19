@@ -19,6 +19,10 @@ use App\Filament\Resources\Hotels\Relations\HotelDescriptionsRelationManager;
 use App\Filament\Resources\Hotels\Relations\HotelAmenitiesRelationManager;
 use App\Filament\Resources\Hotels\Relations\HotelRoomsRelationManager;
 use App\Filament\Resources\Hotels\Relations\HotelMediasRelationManager;
+use App\Filament\Resources\Hotels\Relations\BookingSourcesRelationManager;
+use App\Filament\Resources\Hotels\Relations\SourceMarketsRelationManager;
+use App\Filament\Resources\Hotels\Relations\BookingTypesRelationManager;
+use App\Filament\Resources\Hotels\Relations\MealPlansRelationManager;
 use Illuminate\Database\Eloquent\Builder;
 
 class HotelResource extends Resource
@@ -77,6 +81,10 @@ class HotelResource extends Resource
             HotelAmenitiesRelationManager::class,
             HotelRoomsRelationManager::class,
             HotelMediasRelationManager::class,
+            BookingSourcesRelationManager::class,
+            SourceMarketsRelationManager::class,
+            BookingTypesRelationManager::class,
+            MealPlansRelationManager::class,
         ];
     }
 

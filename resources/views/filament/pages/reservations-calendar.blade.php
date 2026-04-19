@@ -1112,6 +1112,13 @@
                 </div>
             </div>
             <div class="pop-actions">
+                <button class="pop-action" id="pop-view-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    View Detail
+                </button>
                 <button class="pop-action primary-action" id="pop-checkin-btn" style="display: none; background: #22c55e; color: white;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3" />
@@ -1477,13 +1484,16 @@
                         days.forEach(d => {
                             const iso = fmtISO(d);
                             const dc = mkEl('div', 'hc-day-cell' + (iso === today ? ' today-col' : ''));
-
+                            console.log('/BOOKINGS', BOOKINGS)
                             /* Booking chips */
                             BOOKINGS.forEach(b => {
-                                // Force both identifiers to strings and trim to avoid integer vs string mismatches
                                 const bookingRoom = String(b.room_no || '').trim();
                                 const gridRoom = String(roomNo || '').trim();
-
+                                console.log(`Comparing booking room "${bookingRoom}" with grid room "${gridRoom}" for date ${iso}`);
+                                // ADD THIS DEBUG LINE
+                                if (iso === b.check_in) {
+                                    console.log(`Checking Room ${gridRoom} against Booking Room ${bookingRoom} for date ${iso}`);
+                                }
                                 if (bookingRoom === gridRoom && b.check_in === iso) {
                                     const chip = mkEl('div', `hc-booking ${b.booking_type || 'occupied'}`);
 
@@ -1577,13 +1587,33 @@
                 }
             });
 
-            document.getElementById('pop-edit').addEventListener('click', () => {
-                const id = popover.dataset.bookingId;
-                if (id) {
-                    window.location.href = `/filament/reservations/reservations/${id}/edit`;
-                }
-            });
+            // document.getElementById('pop-edit').addEventListener('click', () => {
+            //     const id = popover.dataset.bookingId;
+            //     if (id) {
+            //         window.location.href = `/filament/reservations/reservations/${id}/edit`;
+            //     }
+            // });
 
+            document.getElementById('pop-edit').onclick = () => {
+                // Navigates to the standard Filament Edit page
+                window.location.href = `/admin/reservations/${b.id}/edit`;
+            };
+
+            document.getElementById('pop-view-btn').onclick = () => {
+                // Navigates to the standard Filament View/Detail page
+                window.location.href = `/admin/reservations/${b.id}`;
+            };
+            // Partial Check-in: Only updates the room currently clicked
+            // document.getElementById('pop-checkin-btn').onclick = async () => {
+            //     const res = await lwCall('updateRoomStatusInBooking', b.room_stay_id, 'checked_in');
+            //     if (res.success) window.location.reload();
+            // };
+
+            // Group Check-in: Updates all rooms linked to this reservation
+            // document.getElementById('pop-group-checkin-btn').onclick = async () => {
+            //     const res = await lwCall('updateReservationStatus', b.id, 'checked_in');
+            //     if (res.success) window.location.reload();
+            // };
             document.getElementById('pop-cancel-btn').addEventListener('click', async () => {
                 const id = parseInt(popover.dataset.bookingId);
                 if (!id) return;

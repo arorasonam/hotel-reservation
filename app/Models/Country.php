@@ -30,7 +30,7 @@ class Country extends Model
         return $this->hasManyThrough(Hotel::class, City::class, 'country_id', 'locationable_id')
             ->where('locationable_type', City::class)
             ->union(
-                $this->hasManyThrough(Hotel::class, State::class, 'country_id', 'locationable_id')->where('locationable_type', State::class)
+                $this->hasManyThrough(Hotel::class, State::class, 'country_id', 'y')->where('locationable_type', State::class)
             );
     }
 

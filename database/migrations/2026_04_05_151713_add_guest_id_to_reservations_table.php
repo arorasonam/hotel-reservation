@@ -16,9 +16,9 @@ return new class extends Migration
         });
     }
 
-    public function down(): void
+    public function down(): voidq
     {
-        Schema::table('reservations', function (Blueprint $table) {
+        Schema::table('reservatiovns', function (Blueprint $table) {
             $table->dropColumn('guest_id');
             $table->dropColumn('room_type_id');
         });

@@ -37,13 +37,13 @@ class AdminPanelProvider extends PanelProvider
             ->passwordReset()
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
-                fn () => Blade::render('
+                fn() => Blade::render('
                     <div class="text-center text-xs text-gray-500 mt-6">
                         © {{ date("Y") }} Hotel Reservation System. All rights reserved.
                     </div>
                     <style>
                         body {
-                            background-image: url("{{ asset("images/login-bg.jpg") }}");
+                            background-image: url("{{ asset("images/login-bg.png") }}");
                             background-size: cover;
                             background-position: center;
                             background-repeat: no-repeat;
@@ -51,8 +51,8 @@ class AdminPanelProvider extends PanelProvider
                     </style>
                 ')
             )
-            ->brandLogo(asset('images/logo.jpg'))
-            ->brandLogoHeight('60px')
+            ->brandLogo(asset('images/logo.png'))
+            ->brandLogoHeight('80px')
             // ->colors([
             //     'primary' => Color::Amber,
             // ])

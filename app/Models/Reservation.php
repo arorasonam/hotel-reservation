@@ -21,7 +21,11 @@ class Reservation extends Model
         'status',
         'rate',
         'nights',
-        'room_no'
+        'room_no',
+        'booking_source_id',
+        'booking_type_id',
+        'source_market_id',
+        'reservation_number'
         // ... any other fields you are saving
     ];
 
@@ -76,15 +80,29 @@ class Reservation extends Model
         return $this->belongsTo(Hotel::class);
     }
 
-    public function posOrders()
+    public function room_requirements()
     {
-        return $this->hasMany(PosOrder::class);
+        return $this->hasMany(ReservationRoom::class);
     }
 
-    public function getTotalPosChargesAttribute()
+    public function bookingSource()
     {
-        return $this->posOrders()
-            ->where('status', '!=', 'cancelled')
-            ->sum('grand_total');
+        return $this->belongsTo(BookingSource::class, 'booking_source_id');
+    }
+
+    public function bookingType()
+    {
+        return $this->belongsTo(BookingType::class, 'booking_type_id');
+    }
+
+    public function sourceMarket()
+    {
+        return $this->belongsTo(SourceMarket::class, 'source_market_id');
+    }
+
+    public function reservationRooms()
+    {
+        // Links to the repeater data table
+        return $this->hasMany(ReservationRoom::class, 'reservation_id');
     }
 }
