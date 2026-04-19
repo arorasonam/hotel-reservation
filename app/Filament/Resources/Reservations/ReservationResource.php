@@ -86,7 +86,7 @@ class ReservationResource extends Resource
                                                 ->native(false)->inlineLabel(),
                                         ]),
 
-                                        TextInput::make('ref_id')->label('Booking Ref. Id*')->required()->inlineLabel(),
+                                        // TextInput::make('ref_id')->label('Booking Ref. Id*')->required()->inlineLabel(),
 
                                         Grid::make(2)->schema([
                                             DatePicker::make('check_in')->label('Arrival Date')->required()->live()->inlineLabel(),
@@ -193,7 +193,7 @@ class ReservationResource extends Resource
                                                             if (!$roomTypeId || !$hotelId) {
                                                                 return [];
                                                             }
-                                                            // 3. Fetch meal plans specific to this property AND category
+                                                            // 3.   Fetch meal plans specific to this property AND category
                                                             return \App\Models\MealPlan::where('hotel_id', $hotelId)
                                                                 ->where('room_type_id', (int) $roomTypeId)
                                                                 ->where('is_active', true)
@@ -254,7 +254,7 @@ class ReservationResource extends Resource
                                                                             $roomTypeId = $get('../../room_type_id');
                                                                             if (!$roomTypeId) return ['Auto' => 'Auto'];
 
-                                                                            return ['Auto' => 'Auto'] + \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                            return \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
                                                                                 ->where('status', 'vacant')
                                                                                 ->pluck('room_number', 'room_number')
                                                                                 ->toArray();

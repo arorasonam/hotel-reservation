@@ -90,7 +90,6 @@ class Reservations extends Page
             ->flatMap(function ($res) {
                 $primary = $res->reservationGuests->where('is_primary', true)->first()
                     ?? $res->reservationGuests->first();
-                dd($res->reservationRooms);
                 return $res->reservationRooms->map(function ($roomBlock) use ($res, $primary) {
                     return [
                         'id'             => $res->id, // Parent ID for Edit/View links
