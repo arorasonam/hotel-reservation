@@ -275,9 +275,7 @@ class ReservationResource extends Resource
                         'cancelled' => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('total_pos_charges')
-                    ->label('POS Charges')
-                    ->money('INR'),
+            
                 Tables\Columns\TextColumn::make('remaining_balance')
                     ->label('Folio Balance')
                     ->money('INR'),

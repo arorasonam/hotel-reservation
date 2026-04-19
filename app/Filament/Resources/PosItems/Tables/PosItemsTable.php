@@ -15,10 +15,10 @@ class PosItemsTable
     {
         return $table
             ->columns([
-                TextColumn::make('pos_outlet_id')
+                TextColumn::make('outlet.name')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('pos_category_id')
+                TextColumn::make('category.name')
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('name')
@@ -26,7 +26,8 @@ class PosItemsTable
                 TextColumn::make('price')
                     ->money()
                     ->sortable(),
-                TextColumn::make('tax_percentage')
+                TextColumn::make('tax.percentage')
+                    ->label('Tax %')
                     ->numeric()
                     ->sortable(),
                 IconColumn::make('status')

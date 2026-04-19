@@ -47,8 +47,8 @@ class ReservationFolioService
         }
 
         $reservation = $order->reservation;
-
-        if (! $reservation) {
+        // added by GP $order->status === 'draft'
+        if (! $reservation || $order->status === 'draft') {
             return;
         }
 
@@ -59,7 +59,7 @@ class ReservationFolioService
             reservation: $reservation,
             order: $order,
             sourceKey: 'charge',
-            amount: (float) $order->grand_total,
+            amount: (float) $order->subtotal,
             type: 'debit',
             entryType: 'charge',
             description: 'POS charge - Order #'.$reference,

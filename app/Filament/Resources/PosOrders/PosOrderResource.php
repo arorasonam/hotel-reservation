@@ -78,8 +78,7 @@ class PosOrderResource extends Resource
                 Select::make('order_type')
                     ->options([
                         'room_charge' => 'Room Charge',
-                        'walk_in' => 'Walk-in',
-                        'takeaway' => 'Takeaway',
+                        // 'walk_in' => 'Walk IN'
                     ])
                     ->live()
                     ->required(),
@@ -155,6 +154,14 @@ class PosOrderResource extends Resource
                     ->numeric()
                     ->default(0)
                     ->label('Discount'),
+
+                Select::make('status')
+                    ->options([ 
+                        'draft' => 'Draft',
+                        'confirmed' => 'Confirmed',
+                    ])
+                    ->default('draft')
+                    ->required(),
 
                 Repeater::make('items')
                     ->relationship()
