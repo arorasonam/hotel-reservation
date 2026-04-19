@@ -13,6 +13,10 @@ class Guest extends Model
         'birthday',
         'nationality',
         'profile_photo',
+        'identity_type',
+        'identity_number',
+        'identity_expiry',
+        'identity_document'
     ];
 
     protected $appends = ['name'];

@@ -28,6 +28,7 @@ use Filament\Schemas\Components\Group;
 use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Infolists\Components\ImageEntry;
+use Filament\Forms\Components\Select;
 
 class GuestResource extends Resource
 {
@@ -53,8 +54,9 @@ class GuestResource extends Resource
     {
         return $schema
             ->components([
-
+                
                 Tabs::make('Guest Tabs')
+                    ->columnSpanFull()
                     ->tabs([
 
                         Tab::make('Personal Information')
@@ -90,10 +92,36 @@ class GuestResource extends Resource
 
                                 TextInput::make('nationality'),
 
+                                Select::make('identity_type')
+                                ->options([
+                                    'adhaar_card' => 'Adhaar Card',
+                                    'payment_receipt' => 'Payment Receipt',
+                                    'travel_auhtorization' => 'Travel Auhtorization',
+                                    'cwt_document' => 'CWT Document',
+                                    'carnet_de_ext' => 'Carnet De Ext.',
+                                    'fund_certificate' => 'Fund Certificate'
+                                ]),
+
+                                TextInput::make('identity_number'),
+
+                                DatePicker::make('identity_expiry'),
+
+                                FileUpload::make('identity_document')
+                                    ->label('Upload Identity Proof')
+                                    ->disk('public')   // REQUIRED
+                                    ->directory('guest-identities')
+                                    ->acceptedFileTypes([
+                                        'image/jpeg',
+                                        'image/png',
+                                        'application/pdf'
+                                    ])
+                                    ->maxSize(2048)
+                                    ->downloadable()
+                                    ->openable()
                                 // Toggle::make('vip_status')
                                 //     ->label('VIP Guest'),
 
-                            ]),
+                            ])->columns(3),
 
                         Tab::make('Preferences')
                             ->schema([
@@ -182,12 +210,10 @@ class GuestResource extends Resource
             ->components([
 
                 Tabs::make('Guest Profile')
+                    ->columnSpanFull()
                     ->tabs([
-
                         Tab::make('Personal Information')
                             ->schema([
-                                TextEntry::make('first_name'),
-
                                 TextEntry::make('first_name'),
 
                                 TextEntry::make('last_name'),
@@ -200,7 +226,20 @@ class GuestResource extends Resource
 
                                 TextEntry::make('nationality'),
 
-                            ]),
+                                TextEntry::make('identity_type')
+                                ->formatStateUsing(fn ($state) => ucfirst(str_replace('_', ' ', $state))),
+
+                                TextEntry::make('identity_number'),
+
+                                TextEntry::make('identity_expiry'),
+
+                                ImageEntry::make('identity_document')
+                                    ->label('Identity Document')
+                                    ->disk('public')
+                                    ->visibility('public')
+                                    ->openUrlInNewTab()
+
+                            ])->columns(3),
 
                         Tab::make('Preferences')
                             ->schema([
