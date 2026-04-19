@@ -3,16 +3,14 @@
 namespace App\Filament\Resources\Reservations\RelationManagers;
 
 use App\Filament\Resources\Reservations\ReservationResource;
-use Filament\Actions\CreateAction;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\Textarea;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 
 class PosOrdersRelationManager extends RelationManager
 {
-    protected static string $relationship = 'PosOrders';
+    protected static string $relationship = 'posOrders';
 
     protected static ?string $title = 'POS Orders';
 
@@ -20,14 +18,14 @@ class PosOrdersRelationManager extends RelationManager
 
     public function table(Table $table): Table
     {
-          return $table
+        return $table
             ->columns([
                 TextColumn::make('order_number'),
 
                 TextColumn::make('order_type'),
 
                 TextColumn::make('outlet.name'),
-                
+
                 TextColumn::make('grand_total')
                     ->money('INR'),
 
@@ -41,11 +39,11 @@ class PosOrdersRelationManager extends RelationManager
             ])->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
-                        'draft'     => 'Draft',
+                        'draft' => 'Draft',
                         'confirmed' => 'Confirmed',
-                        'paid'      => 'Paid',
+                        'paid' => 'Paid',
                         'cancelled' => 'Cancelled',
-                    ])
+                    ]),
             ]);
     }
 }

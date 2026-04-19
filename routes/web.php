@@ -1,10 +1,9 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Models\HotelRoom;
-use Illuminate\Http\Request;
 use App\Filament\Pages\Reservations;
 use App\Http\Controllers\POSInvoiceController;
+use App\Http\Controllers\ReservationInvoiceController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
@@ -28,8 +27,14 @@ Route::middleware(['web', 'auth'])->prefix('filament')->group(function () {
     // Route::get('/reservations/{id}/edit', [...])
     //      ->name('filament.reservations.edit');
     Route::get('/pos/invoice/{id}', [POSInvoiceController::class, 'print'])
-    ->name('pos.invoice.print');
+        ->name('pos.invoice.print');
 
     Route::get('/pos/invoice/{id}/download', [POSInvoiceController::class, 'download'])
-    ->name('pos.invoice.download');
+        ->name('pos.invoice.download');
+
+    Route::get('/reservations/{reservation}/invoice', [ReservationInvoiceController::class, 'print'])
+        ->name('reservations.invoice.print');
+
+    Route::get('/reservations/{reservation}/invoice/download', [ReservationInvoiceController::class, 'download'])
+        ->name('reservations.invoice.download');
 });

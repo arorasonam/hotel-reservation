@@ -93,31 +93,17 @@ Table:
 
 <p>Subtotal: Rs. {{ $order->subtotal }}</p>
 
-@if($order->tax_total)
-<p>Tax: Rs. {{ $order->tax_total }}</p>
+@if($order->tax_amount)
+<p>Tax: Rs. {{ $order->tax_amount }}</p>
 @endif
 
-@if($order->discount_total)
-<p>Discount: Rs.  {{ $order->discount_total }}</p>
+@if($order->discount_amount)
+<p>Discount: Rs.  {{ $order->discount_amount }}</p>
 @endif
 
 <p class="total">
 Grand Total: Rs. {{ $order->grand_total }}
 </p>
-
-<hr>
-
-<h4>Payments</h4>
-
-@foreach($order->payments as $payment)
-
-<p>
-{{ ucfirst($payment->payment_method) }}
-:
-Rs. {{ $payment->amount }}
-</p>
-
-@endforeach
 
 <hr>
 

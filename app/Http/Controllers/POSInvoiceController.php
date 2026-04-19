@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
-use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\PosOrder;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class POSInvoiceController extends Controller
 {
@@ -13,9 +11,8 @@ class POSInvoiceController extends Controller
     {
         $order = PosOrder::with([
             'items.item',
-            'payments',
             'guest',
-            'outlet'
+            'outlet',
         ])->findOrFail($id);
 
         return view('pos.invoice', compact('order'));
@@ -25,9 +22,8 @@ class POSInvoiceController extends Controller
     {
         $order = PosOrder::with([
             'items.item',
-            'payments',
             'guest',
-            'outlet'
+            'outlet',
         ])->findOrFail($id);
 
         $pdf = Pdf::loadView('pos.invoice', compact('order'));

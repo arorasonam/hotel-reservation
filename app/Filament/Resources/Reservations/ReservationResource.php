@@ -6,41 +6,41 @@ use App\Filament\Resources\Reservations\Pages\CreateReservation;
 use App\Filament\Resources\Reservations\Pages\EditReservation;
 use App\Filament\Resources\Reservations\Pages\ListReservations;
 use App\Filament\Resources\Reservations\Pages\ViewReservation;
+use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
+use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
+use App\Models\Guest; // Using Schema instead of Form
+use App\Models\HotelRoom;
 use App\Models\Reservation;
-use Filament\Resources\Resource;
-use Filament\Schemas\Schema; // Using Schema instead of Form
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Tabs;
-use Filament\Schemas\Components\Tabs\Tab;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Grid;
-use Filament\Forms\Components\Repeater;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Filament\Actions\Action;
+use App\Models\RoomType;
+use BackedEnum;
+use Carbon\Carbon;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Set;
-use BackedEnum;
-use UnitEnum;
-use Filament\Forms\Get;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Infolists\Infolist;
-use Filament\Infolists\Components\TextEntry;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\RepeatableEntry;
-use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
-use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 class ReservationResource extends Resource
 {
     protected static ?string $model = Reservation::class;
 
-    protected static BackedEnum|string|null $navigationIcon  = 'heroicon-o-calendar-days';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-calendar-days';
 
     protected static ?string $navigationLabel = 'Reservations';
 
@@ -69,15 +69,17 @@ class ReservationResource extends Resource
                                                     ->label('Search Existing Guest')
                                                     // Update relationship to point to 'guest' (from Guests table)
                                                     ->relationship('guest', 'first_name') // Changed 'name' to 'first_name'
-                                                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->first_name} {$record->last_name}") // Shows both in dropdown
+                                                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name}") // Shows both in dropdown
                                                     ->searchable(['first_name', 'last_name']) // Allows searching by both
                                                     ->preload()
                                                     ->live()
                                                     ->afterStateUpdated(function ($state, $set) {
-                                                        if (!$state) return;
+                                                        if (! $state) {
+                                                            return;
+                                                        }
 
                                                         // Explicitly query the Guest model instead of User
-                                                        $guest = \App\Models\Guest::find($state);
+                                                        $guest = Guest::find($state);
                                                         if ($guest) {
                                                             $set('first_name', $guest->first_name);
                                                             $set('last_name', $guest->last_name);
@@ -100,8 +102,9 @@ class ReservationResource extends Resource
                                                     ])
                                                     ->createOptionUsing(function (array $data) {
                                                         // Create record in 'guests' table
-                                                        $data['name'] = trim($data['first_name'] . ' ' . $data['last_name']);
-                                                        return \App\Models\Guest::create($data)->id;
+                                                        $data['name'] = trim($data['first_name'].' '.$data['last_name']);
+
+                                                        return Guest::create($data)->id;
                                                     })
                                                     ->columnSpan(2),
 
@@ -120,7 +123,7 @@ class ReservationResource extends Resource
                                                 TextInput::make('phone')->tel(),
                                             ]),
                                     ])
-                                    ->itemLabel(fn(array $state): ?string => ($state['first_name'] ?? '') . ' ' . ($state['last_name'] ?? ''))
+                                    ->itemLabel(fn (array $state): ?string => ($state['first_name'] ?? '').' '.($state['last_name'] ?? ''))
                                     ->collapsible()
                                     ->defaultItems(1)
                                     ->addActionLabel('Add more Guest[s]')
@@ -160,19 +163,19 @@ class ReservationResource extends Resource
                                                     ->label('Arrival Date')
                                                     ->required()
                                                     ->live()
-                                                    ->afterStateUpdated(fn($state, $set, $get) => self::updateNights($state, $get('check_out'), $set)),
+                                                    ->afterStateUpdated(fn ($state, $set, $get) => self::updateNights($state, $get('check_out'), $set)),
 
                                                 DatePicker::make('check_out')
                                                     ->label('Departure Date')
                                                     ->required()
                                                     ->live()
-                                                    ->afterStateUpdated(fn($state, $set, $get) => self::updateNights($get('check_in'), $state, $set)),
+                                                    ->afterStateUpdated(fn ($state, $set, $get) => self::updateNights($get('check_in'), $state, $set)),
 
                                                 Select::make('room_type_id')
                                                     ->label('Room Type')
                                                     ->placeholder('Select a hotel first')
                                                     ->options(function (callable $get) {
-                                                        return \App\Models\RoomType::pluck('name', 'id');
+                                                        return RoomType::pluck('name', 'id');
                                                     })
                                                     ->required()
                                                     ->live(),
@@ -182,9 +185,11 @@ class ReservationResource extends Resource
                                                     ->placeholder('Select room type first')
                                                     ->options(function (callable $get) {
                                                         $roomTypeId = $get('room_type_id');
-                                                        if (!$roomTypeId) return [];
+                                                        if (! $roomTypeId) {
+                                                            return [];
+                                                        }
 
-                                                        return \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                        return HotelRoom::where('room_type_id', $roomTypeId)
                                                             ->pluck('room_number', 'room_number')
                                                             ->toArray();
                                                     })
@@ -246,6 +251,7 @@ class ReservationResource extends Resource
                         }
 
                         $firstGuest = $record->reservationGuests()->first();
+
                         return $firstGuest
                             ? trim("{$firstGuest->first_name} {$firstGuest->last_name}")
                             : 'No Guest Assigned';
@@ -262,7 +268,7 @@ class ReservationResource extends Resource
                 Tables\Columns\TextColumn::make('roomType.name')->label('Room Type'),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn (string $state): string => match ($state) {
                         'confirmed' => 'success',
                         'tentative' => 'info',
                         'waitlist' => 'warning',
@@ -270,8 +276,11 @@ class ReservationResource extends Resource
                         default => 'gray',
                     }),
                 Tables\Columns\TextColumn::make('total_pos_charges')
-                        ->label('POS Charges')
-                        ->money('INR')
+                    ->label('POS Charges')
+                    ->money('INR'),
+                Tables\Columns\TextColumn::make('remaining_balance')
+                    ->label('Folio Balance')
+                    ->money('INR'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -286,68 +295,13 @@ class ReservationResource extends Resource
                 ViewAction::make(),
                 EditAction::make()->icon('heroicon-m-pencil-square'),
                 DeleteAction::make()->icon('heroicon-m-trash'),
-                // Action::make('checkoutGuest')
-                // ->label('Checkout Guest')
-                // ->icon('heroicon-o-credit-card')
-                // ->form([
-                //     Select::make('payment_method')
-                //         ->options([
-                //             'cash' => 'Cash',
-                //             'card' => 'Card',
-                //             'upi' => 'UPI',
-                //         ])
-                //         ->required(),
-
-                //     TextInput::make('amount')
-                //         ->numeric()
-                //         ->required(),
-
-                // ])
-                // ->action(function ($record, $data) {
-
-                //     if ($record->remaining_balance > 0) {
-
-                //         \Filament\Notifications\Notification::make()
-                //             ->title('Payment pending before checkout')
-                //             ->danger()
-                //             ->send();
-
-                //         return;
-                //     }
-
-                //     // Create checkout Payment
-                //     POSPayment::create([
-
-                //         'reservation_id' => $record->id,
-
-                //         'payment_method' => $data['payment_method'],
-
-                //         'amount' => $data['amount'],
-
-                //         'paid_at' => now(),
-
-                //     ]);
-
-                //     $totalCharges =
-                //         $record->folios()->sum('amount');
-
-                //     $totalPaid =
-                //         $record->payments()->sum('amount');
-
-                //     if ($totalPaid >= $totalCharges) {
-
-                //         $record->update([
-                //             'status' => 'checked_out'
-                //         ]);
-                //     }
-                // })
             ]);
     }
 
     protected static function updateNights($cin, $cout, $set)
     {
         if ($cin && $cout) {
-            $set('nights', \Carbon\Carbon::parse($cin)->diffInDays(\Carbon\Carbon::parse($cout)));
+            $set('nights', Carbon::parse($cin)->diffInDays(Carbon::parse($cout)));
         }
     }
 
@@ -361,7 +315,7 @@ class ReservationResource extends Resource
         ];
     }
 
-     /*
+    /*
     |--------------------------------------------------------------------------
     | RELATION MANAGERS
     |--------------------------------------------------------------------------
@@ -371,7 +325,7 @@ class ReservationResource extends Resource
     {
         return [
             PosOrdersRelationManager::class,
-            FoliosRelationManager::class
+            FoliosRelationManager::class,
         ];
     }
 
@@ -415,7 +369,6 @@ class ReservationResource extends Resource
 
                             ]),
 
-
                         Tab::make('Stay Details')
                             ->icon('heroicon-m-calendar')
                             ->schema([
@@ -443,7 +396,6 @@ class ReservationResource extends Resource
 
                             ]),
 
-
                         Tab::make('Payment Information')
                             ->icon('heroicon-m-credit-card')
                             ->schema([
@@ -462,7 +414,6 @@ class ReservationResource extends Resource
 
                             ]),
 
-
                         Tab::make('Special Requests')
                             ->icon('heroicon-m-chat-bubble-bottom-center-text')
                             ->schema([
@@ -472,9 +423,8 @@ class ReservationResource extends Resource
 
                             ]),
 
-                    ])
+                    ]),
 
             ]);
     }
-
 }
