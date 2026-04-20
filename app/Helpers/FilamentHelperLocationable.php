@@ -139,12 +139,12 @@ class FilamentHelperLocationable
                     ->all()
             )
             ->getOptionLabelsUsing(fn(array $values): array => Country::query()->whereIn('id', $values)->pluck('name', 'id')->all())
-            ->query(function (Builder $query, array $data) {v
+            ->query(function (Builder $query, array $data) {
                 $countryId = $data['values'] ?? [];
                 if (count($countryId) == 0) return $query;
                 $query->whereHasMorph('locationable', [Country::class], fn($q) => $q->whereIn('id', $countryId));
                 $query->orWhereHasMorph('locationable', [State::class, City::class], fn($q) => $q->whereIn('country_id', $countryId));
-                return $query;q
+                return $query;
             });
     }
 

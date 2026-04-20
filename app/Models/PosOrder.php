@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\ReservationFolioService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 
 class PosOrder extends Model
@@ -20,52 +23,65 @@ class PosOrder extends Model
         'discount_amount',
         'grand_total',
         'status',
-        'created_by'
+        'created_by',
     ];
-    
-    public function items()
+
+    public function items(): HasMany
     {
         return $this->hasMany(PosOrderItem::class);
     }
 
-    public function outlet()
+    public function outlet(): BelongsTo
     {
         return $this->belongsTo(PosOutlet::class, 'pos_outlet_id');
     }
 
-    public function reservation()
+    public function reservation(): BelongsTo
     {
         return $this->belongsTo(Reservation::class);
     }
 
-    public function guest()
+    public function guest(): BelongsTo
     {
         return $this->belongsTo(Guest::class);
     }
 
-    public function room()
+    public function room(): BelongsTo
     {
         return $this->belongsTo(HotelRoom::class, 'room_id');
     }
-    
-    protected static function booted()
+
+    protected static function booted(): void
     {
-        static::creating(function ($order) {
-            if (!$order->created_by) {
+        static::creating(function (PosOrder $order): void {
+            if (! $order->created_by) {
                 $order->created_by = Auth::id();
             }
         });
+
+        static::deleted(function (PosOrder $order): void {
+            app(ReservationFolioService::class)->deleteEntriesForSource('pos_order', $order->id);
+        });
     }
 
-    public function refreshTotals()
+    public function refreshTotals(): void
     {
-        $subtotal = $this->items->sum(fn ($item) =>
-            $item->price * $item->quantity
-        );
+        $items = $this->items()->get();
+
+        $subtotal = (float) $items->sum('subtotal');
+        $taxAmount = (float) $items->sum('tax_amount');
+        $discountAmount = (float) $this->discount_amount;
+        $grandTotal = round($subtotal + $taxAmount - $discountAmount, 2);
 
         $this->update([
             'subtotal' => $subtotal,
-            'grand_total' => $subtotal,
+            'tax_amount' => $taxAmount,
+            'grand_total' => $grandTotal,
         ]);
+    }
+
+    public function hotel(): BelongsTo
+    {
+        return $this->belongsTo(Hotel::class);
     }
 }

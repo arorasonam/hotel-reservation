@@ -21,6 +21,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;
 use UnitEnum;
+use App\Models\PosCategory;
 
 class PosItemResource extends Resource
 {
@@ -40,10 +41,24 @@ class PosItemResource extends Resource
             ->components([
                 Select::make('pos_outlet_id')
                     ->relationship('outlet', 'name')
+                    ->live()
                     ->required(),
 
                 Select::make('pos_category_id')
                     ->relationship('category', 'name')
+                     ->options(function ($livewire) {
+                        $outletId = data_get($livewire->data, 'pos_outlet_id');
+
+                        if (!$outletId) {
+                            return [];
+                        }
+
+                        return PosCategory::where('pos_outlet_id', $outletId)
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
+                    ->disabled(fn ($livewire) => empty(data_get($livewire->data, 'pos_outlet_id')))
+                    ->reactive()
                     ->required(),
 
                 TextInput::make('name')
@@ -53,9 +68,9 @@ class PosItemResource extends Resource
                     ->numeric()
                     ->required(),
 
-                TextInput::make('tax_percentage')
-                    ->numeric()
-                    ->default(0),
+                Select::make('tax_id')
+                    ->relationship('tax', 'name')
+                    ->searchable(),
 
                 Toggle::make('status')
                     ->default(true),

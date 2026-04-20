@@ -19,7 +19,9 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Select;
 use UnitEnum;
+
 
 class PosOutletResource extends Resource
 {
@@ -37,6 +39,16 @@ class PosOutletResource extends Resource
     {
         return $schema
             ->components([
+                Select::make('hotel_id')
+                ->label('Hotel')
+                ->relationship(
+                    name: 'hotel',
+                    titleAttribute: 'name',
+                    modifyQueryUsing: fn ($query) => $query->orderBy('name')
+                )
+                ->searchable()
+                ->preload()
+                ->required(),
 
                 TextInput::make('name')
                     ->required(),
@@ -57,8 +69,13 @@ class PosOutletResource extends Resource
     {
         return $table
             ->columns([
-
+                
                 TextColumn::make('name')->searchable(),
+                
+                TextColumn::make('hotel.name')
+                ->label('Hotel')
+                ->searchable()
+                ->sortable(),
 
                 TextColumn::make('code'),
 

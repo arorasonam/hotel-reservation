@@ -11,7 +11,8 @@ class PosItem extends Model
         'pos_category_id',
         'name',
         'price',
-        'tax_percentage',
+        'tax_id',
+        'tax_amount',
         'status'
     ];
 
@@ -23,5 +24,10 @@ class PosItem extends Model
     public function category()
     {
         return $this->belongsTo(PosCategory::class, 'pos_category_id');
+    }
+
+    public function tax()
+    {
+        return $this->belongsTo(Tax::class);
     }
 }

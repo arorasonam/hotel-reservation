@@ -18,4 +18,9 @@ class PosOutlet extends Model
     {
         return $this->hasMany(PosCategory::class);
     }
+
+    public function hotel()
+    {
+        return $this->belongsTo(Hotel::class);
+    }
 }

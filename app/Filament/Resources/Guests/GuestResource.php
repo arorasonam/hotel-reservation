@@ -262,7 +262,7 @@ class GuestResource extends Resource
                             ]),
 
                     ])
-
+                    ->columns(3),
             ]);
     }
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\PosItems\Tables;
+namespace App\Filament\Resources\Taxes\Tables;
 
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -9,25 +9,15 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
-class PosItemsTable
+class TaxesTable
 {
     public static function configure(Table $table): Table
     {
         return $table
             ->columns([
-                TextColumn::make('outlet.name')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('category.name')
-                    ->numeric()
-                    ->sortable(),
                 TextColumn::make('name')
                     ->searchable(),
-                TextColumn::make('price')
-                    ->money()
-                    ->sortable(),
-                TextColumn::make('tax.percentage')
-                    ->label('Tax %')
+                TextColumn::make('percentage')
                     ->numeric()
                     ->sortable(),
                 IconColumn::make('status')

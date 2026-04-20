@@ -19,6 +19,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use BackedEnum;
 use UnitEnum;
 use App\Models\HotelRoom;
@@ -33,6 +34,14 @@ use Illuminate\Support\HtmlString;
 use App\Models\bookingSource;
 use App\Models\SourceMarket;
 use App\Models\BookingType;
+use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
+use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\BadgeEntry;
+use Filament\Infolists\Components\ImageEntry;
+use Filament\Infolists\Components\RepeatableEntry;
 
 class ReservationResource extends Resource
 {
@@ -414,9 +423,12 @@ class ReservationResource extends Resource
                         'cancelled' => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('total_pos_charges')
-                    ->label('Total Charges')
-                    ->money('INR')
+                Tables\Columns\TextColumn::make('remaining_balance')
+                    ->label('Folio Balance')
+                    ->money('INR'),
+                // Tables\Columns\TextColumn::make('total_pos_charges')
+                //     ->label('Total Charges')
+                //     ->money('INR')
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -430,6 +442,7 @@ class ReservationResource extends Resource
             ->actions([
                 EditAction::make()->icon('heroicon-m-pencil-square'),
                 DeleteAction::make()->icon('heroicon-m-trash'),
+                // ViewAction::make()->icon('heroicon-m-eye')->color('info'),
             ]);
     }
 
@@ -440,5 +453,112 @@ class ReservationResource extends Resource
             'create' => CreateReservation::route('/create'),
             'edit' => EditReservation::route('/{record}/edit'),
         ];
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            PosOrdersRelationManager::class,
+            FoliosRelationManager::class,
+        ];
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+
+                Tabs::make('Reservation Details')
+                    ->tabs([
+
+                        Tab::make('Guest Information')
+                            ->icon('heroicon-m-user')
+                            ->schema([
+
+                                RepeatableEntry::make('reservationGuests')
+                                    ->label('Guests')
+                                    ->schema([
+
+                                        TextEntry::make('first_name')
+                                            ->label('First Name'),
+
+                                        TextEntry::make('last_name')
+                                            ->label('Last Name'),
+
+                                        TextEntry::make('email'),
+
+                                        TextEntry::make('phone'),
+
+                                        TextEntry::make('nationality'),
+
+                                        TextEntry::make('birthday')
+                                            ->date(),
+
+                                        TextEntry::make('is_primary')
+                                            ->badge()
+                                            ->formatStateUsing(fn($state) => $state ? 'Primary Guest' : 'Guest')
+                                            ->color(fn($state) => $state ? 'success' : 'gray'),
+                                    ])
+                                    ->columns(3),
+
+                            ]),
+
+                        Tab::make('Stay Details')
+                            ->icon('heroicon-m-calendar')
+                            ->schema([
+
+                                Section::make()
+                                    ->schema([
+
+                                        TextEntry::make('hotel.name')
+                                            ->label('Hotel'),
+
+                                        TextEntry::make('check_in')
+                                            ->date(),
+
+                                        TextEntry::make('check_out')
+                                            ->date(),
+
+                                        TextEntry::make('roomType.name')
+                                            ->label('Room Type'),
+
+                                        TextEntry::make('room_no')
+                                            ->label('Room Number'),
+
+                                    ])
+                                    ->columns(2),
+
+                            ]),
+
+                        Tab::make('Payment Information')
+                            ->icon('heroicon-m-credit-card')
+                            ->schema([
+
+                                TextEntry::make('payment_method')
+                                    ->badge()
+                                    ->color(fn($state) => match ($state) {
+                                        'credit_card' => 'success',
+                                        'cash' => 'info',
+                                        'bank_transfer' => 'warning',
+                                        default => 'gray',
+                                    }),
+
+                                TextEntry::make('card_number')
+                                    ->label('Card Number'),
+
+                            ]),
+
+                        Tab::make('Special Requests')
+                            ->icon('heroicon-m-chat-bubble-bottom-center-text')
+                            ->schema([
+
+                                TextEntry::make('special_requests')
+                                    ->placeholder('No special requests provided'),
+
+                            ]),
+
+                    ]),
+
+            ]);
     }
 }

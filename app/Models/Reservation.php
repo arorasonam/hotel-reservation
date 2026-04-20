@@ -2,7 +2,11 @@
 
 namespace App\Models;
 
+use App\Services\ReservationFolioService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Reservation extends Model
 {
@@ -26,13 +30,21 @@ class Reservation extends Model
         'booking_type_id',
         'source_market_id',
         'reservation_number'
-        // ... any other fields you are saving
     ];
 
-    protected static function booted()
+    protected function casts(): array
+    {
+        return [
+            'check_in' => 'date',
+            'check_out' => 'date',
+            'rate' => 'decimal:2',
+        ];
+    }
+
+    protected static function booted(): void
     {
         static::creating(function ($reservation) {
-            if (!$reservation->reservation_number) {
+            if (! $reservation->reservation_number) {
                 // 1. Get the Hotel Prefix (e.g., THE)
                 $hotelPrefix = 'RES';
                 if ($reservation->hotel) {
@@ -48,14 +60,18 @@ class Reservation extends Model
                 $reservation->reservation_number = $hotelPrefix . '_' . str_pad($nextId, 7, '0', STR_PAD_LEFT);
             }
         });
+
+        static::saved(function (Reservation $reservation): void {
+            app(ReservationFolioService::class)->syncReservationStayCharge($reservation);
+        });
     }
 
-    public function room()
+    public function room(): BelongsTo
     {
         return $this->belongsTo(HotelRoom::class);
     }
 
-    public function guests()
+    public function guests(): BelongsToMany
     {
         return $this->belongsToMany(
             Guest::class,
@@ -65,17 +81,17 @@ class Reservation extends Model
         );
     }
 
-    public function roomType()
+    public function roomType(): BelongsTo
     {
         return $this->belongsTo(RoomType::class);
     }
 
-    public function reservationGuests()
+    public function reservationGuests(): HasMany
     {
         return $this->hasMany(ReservationGuest::class);
     }
 
-    public function hotel()
+    public function hotel(): BelongsTo
     {
         return $this->belongsTo(Hotel::class);
     }
@@ -104,5 +120,39 @@ class Reservation extends Model
     {
         // Links to the repeater data table
         return $this->hasMany(ReservationRoom::class, 'reservation_id');
+    }
+
+    public function folios(): HasMany
+    {
+        return $this->hasMany(ReservationFolio::class);
+    }
+
+    public function getTotalFolioAmountAttribute(): float
+    {
+        return (float) $this->folios()->sum('amount');
+    }
+
+    public function getTotalFolioDebitsAttribute(): float
+    {
+        return (float) $this->folios()
+            ->where('type', 'debit')
+            ->sum('amount');
+    }
+
+    public function getTotalFolioCreditsAttribute(): float
+    {
+        return (float) $this->folios()
+            ->where('type', 'credit')
+            ->sum('amount');
+    }
+
+    public function getRemainingBalanceAttribute(): float
+    {
+        return round($this->total_folio_debits - $this->total_folio_credits, 2);
+    }
+
+    public function posOrders(): HasMany
+    {
+        return $this->hasMany(PosOrder::class);
     }
 }
