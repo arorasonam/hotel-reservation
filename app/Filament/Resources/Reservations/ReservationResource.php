@@ -5,49 +5,46 @@ namespace App\Filament\Resources\Reservations;
 use App\Filament\Resources\Reservations\Pages\CreateReservation;
 use App\Filament\Resources\Reservations\Pages\EditReservation;
 use App\Filament\Resources\Reservations\Pages\ListReservations;
+use App\Filament\Resources\Reservations\Pages\ViewReservation;
+use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
+use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
+use App\Models\Guest; // Using Schema instead of Form
+use App\Models\HotelRoom;
+use App\Models\MealPlan;
 use App\Models\Reservation;
-use Filament\Resources\Resource;
-use Filament\Schemas\Schema; // Using Schema instead of Form
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Grid;
-use Filament\Forms\Components\Repeater;
-use Filament\Tables;
-use Filament\Tables\Table;
+use App\Models\RoomType;
+use BackedEnum;
+use Carbon\Carbon;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use BackedEnum;
-use UnitEnum;
-use App\Models\HotelRoom;
-use Filament\Forms\Components\TimePicker;
-use Carbon\Carbon;
 use Filament\Forms\Components\Checkbox;
-use Filament\Forms\Components\Toggle;
-use App\Models\RoomType;
-use App\Models\Guest;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
-use Illuminate\Support\HtmlString;
-use App\Models\bookingSource;
-use App\Models\SourceMarket;
-use App\Models\BookingType;
-use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
-use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\BadgeEntry;
-use Filament\Infolists\Components\ImageEntry;
-use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Schemas\Schema;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Support\HtmlString;
+use UnitEnum;
 
 class ReservationResource extends Resource
 {
     protected static ?string $model = Reservation::class;
 
-    protected static BackedEnum|string|null $navigationIcon  = 'heroicon-o-calendar-days';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-calendar-days';
 
     protected static ?string $navigationLabel = 'Reservations';
 
@@ -84,7 +81,7 @@ class ReservationResource extends Resource
                                         Grid::make(2)->schema([
                                             Select::make('booking_source_id')
                                                 ->label('Booking Source')
-                                                ->relationship('bookingSource', 'name', fn($query, $get) => $query->where('hotel_id', $get('hotel_id')))
+                                                ->relationship('bookingSource', 'name', fn ($query, $get) => $query->where('hotel_id', $get('hotel_id')))
                                                 ->searchable()
                                                 ->preload()
                                                 ->required()
@@ -103,7 +100,7 @@ class ReservationResource extends Resource
                                         ]),
                                         Select::make('booking_type_id')
                                             ->label('Booking Type')
-                                            ->relationship('bookingType', 'name', fn($query, $get) => $query->where('hotel_id', $get('hotel_id')))
+                                            ->relationship('bookingType', 'name', fn ($query, $get) => $query->where('hotel_id', $get('hotel_id')))
                                             ->searchable()
                                             ->preload()
                                             ->native(false)
@@ -117,7 +114,7 @@ class ReservationResource extends Resource
                                         Grid::make(2)->schema([
                                             Select::make('source_market_id')
                                                 ->label('Source Market')
-                                                ->relationship('sourceMarket', 'name', fn($query, $get) => $query->where('hotel_id', $get('hotel_id')))
+                                                ->relationship('sourceMarket', 'name', fn ($query, $get) => $query->where('hotel_id', $get('hotel_id')))
                                                 ->searchable()
                                                 ->preload()
                                                 ->native(false)
@@ -150,7 +147,6 @@ class ReservationResource extends Resource
                                     ->compact()
                                     ->schema([
 
-
                                         Repeater::make('room_requirements')
                                             ->relationship('room_requirements')
                                             ->schema([
@@ -179,14 +175,14 @@ class ReservationResource extends Resource
                                                         }
                                                     })
                                                     // Hide the toggle on the very first item since there is nothing "above" it
-                                                    ->hidden(fn($get) => array_key_first($get('../../room_requirements')) === $get('uuid')),
+                                                    ->hidden(fn ($get) => array_key_first($get('../../room_requirements')) === $get('uuid')),
 
                                                 Grid::make(3)->schema([
                                                     Select::make('room_type_id')
                                                         ->label('Category')
-                                                        ->options(fn($get) => \App\Models\RoomType::pluck('name', 'id'))
+                                                        ->options(fn ($get) => RoomType::pluck('name', 'id'))
                                                         ->live()->required()
-                                                        ->disabled(fn($get) => $get('similar_to_above')), // Lock field if synced
+                                                        ->disabled(fn ($get) => $get('similar_to_above')), // Lock field if synced
 
                                                     Select::make('meal_plan_id')
                                                         ->label('Meal Plan')
@@ -199,11 +195,12 @@ class ReservationResource extends Resource
                                                             $hotelId = $get('../../hotel_id');
 
                                                             // Return empty if either is missing to prevent errors
-                                                            if (!$roomTypeId || !$hotelId) {
+                                                            if (! $roomTypeId || ! $hotelId) {
                                                                 return [];
                                                             }
+
                                                             // 3.   Fetch meal plans specific to this property AND category
-                                                            return \App\Models\MealPlan::where('hotel_id', $hotelId)
+                                                            return MealPlan::where('hotel_id', $hotelId)
                                                                 ->where('room_type_id', (int) $roomTypeId)
                                                                 ->where('is_active', true)
                                                                 ->pluck('name', 'id');
@@ -211,7 +208,7 @@ class ReservationResource extends Resource
                                                         ->live()
                                                         ->required()
                                                         ->native(false)
-                                                        ->disabled(fn($get) => !$get('room_type_id') || $get('similar_to_above')),
+                                                        ->disabled(fn ($get) => ! $get('room_type_id') || $get('similar_to_above')),
 
                                                     Select::make('rooms_count')
                                                         ->label('Rooms')
@@ -222,7 +219,7 @@ class ReservationResource extends Resource
                                                         ->afterStateUpdated(function ($state, $set, $get) {
                                                             // Logic to pre-populate the 'Requirements' section based on count
                                                             $requirements = [];
-                                                            for ($i = 1; $i <= (int)$state; $i++) {
+                                                            for ($i = 1; $i <= (int) $state; $i++) {
                                                                 $requirements[] = [
                                                                     'adults' => 2,
                                                                     'children' => 0,
@@ -242,7 +239,7 @@ class ReservationResource extends Resource
                                                                 Grid::make(6)->schema([
                                                                     Placeholder::make('room_label')
                                                                         ->label('')
-                                                                        ->content(fn($get, $component) => new HtmlString('<strong>Room ' . ($get('../../rooms_count') > 1 ? '#' : '') . '</strong>'))
+                                                                        ->content(fn ($get, $component) => new HtmlString('<strong>Room '.($get('../../rooms_count') > 1 ? '#' : '').'</strong>'))
                                                                         ->columnSpan(1),
 
                                                                     Select::make('adults')
@@ -261,9 +258,11 @@ class ReservationResource extends Resource
                                                                         ->label('Room No.')
                                                                         ->options(function ($get) {
                                                                             $roomTypeId = $get('../../room_type_id');
-                                                                            if (!$roomTypeId) return ['Auto' => 'Auto'];
+                                                                            if (! $roomTypeId) {
+                                                                                return ['Auto' => 'Auto'];
+                                                                            }
 
-                                                                            return \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                            return HotelRoom::where('room_type_id', $roomTypeId)
                                                                                 ->where('status', 'vacant')
                                                                                 ->pluck('room_number', 'room_number')
                                                                                 ->toArray();
@@ -274,13 +273,13 @@ class ReservationResource extends Resource
                                                             ])
                                                             ->addable(false) // Disable manual adding; driven by 'rooms_count'
                                                             ->deletable(false)
-                                                            ->reorderable(false)
-                                                    ])
+                                                            ->reorderable(false),
+                                                    ]),
                                             ])
                                             ->addActionLabel('Add More Room Category')
                                             ->cloneable()
                                             ->collapsible()
-                                            ->itemLabel(fn(array $state): ?string => RoomType::find($state['room_type_id'] ?? null)?->name ?? 'New Category')
+                                            ->itemLabel(fn (array $state): ?string => RoomType::find($state['room_type_id'] ?? null)?->name ?? 'New Category')
                                             ->extraAttributes(['class' => 'bg-gray-50/50 p-2 rounded-lg border border-gray-100']),
                                     ]),
 
@@ -294,7 +293,7 @@ class ReservationResource extends Resource
                                                 Select::make('guest_id')
                                                     ->label('Find Existing Guest')
                                                     ->relationship('guest', 'first_name')
-                                                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->first_name} {$record->last_name}")
+                                                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name}")
                                                     ->searchable(['first_name', 'last_name', 'email'])
                                                     ->createOptionForm([
                                                         Grid::make(2)->schema([
@@ -305,7 +304,9 @@ class ReservationResource extends Resource
                                                         ]),
                                                     ])
                                                     ->afterStateUpdated(function ($state, $set) {
-                                                        if (!$state) return;
+                                                        if (! $state) {
+                                                            return;
+                                                        }
                                                         $guest = Guest::find($state);
                                                         if ($guest) {
                                                             $set('first_name', $guest->first_name);
@@ -330,18 +331,18 @@ class ReservationResource extends Resource
                                     ->compact()
                                     ->schema([
                                         TextInput::make('base_price')->label('Room Charges')->numeric()->prefix('₹')->live(onBlur: true)
-                                            ->afterStateUpdated(fn($set, $get) => self::calculateTotal($set, $get)),
+                                            ->afterStateUpdated(fn ($set, $get) => self::calculateTotal($set, $get)),
 
                                         TextInput::make('tax_amount')->label('Taxes')->numeric()->prefix('₹')->default(0)->live(onBlur: true)
-                                            ->afterStateUpdated(fn($set, $get) => self::calculateTotal($set, $get)),
+                                            ->afterStateUpdated(fn ($set, $get) => self::calculateTotal($set, $get)),
 
                                         Placeholder::make('total_display')
                                             ->label('')
-                                            ->content(fn($get) => new HtmlString('
+                                            ->content(fn ($get) => new HtmlString('
                                                 <div class="pt-4 border-t mt-4 text-right">
                                                     <div class="flex justify-between text-lg font-bold">
                                                         <span>Net Payable</span>
-                                                        <span class="text-primary-600">₹' . number_format((float)($get('total_amount') ?? 0), 2) . '</span>
+                                                        <span class="text-primary-600">₹'.number_format((float) ($get('total_amount') ?? 0), 2).'</span>
                                                     </div>
                                                 </div>
                                             ')),
@@ -369,9 +370,9 @@ class ReservationResource extends Resource
 
     protected static function calculateTotal($set, $get)
     {
-        $base = (float)$get('base_price') ?? 0;
-        $tax = (float)$get('tax_amount') ?? 0;
-        $disc = (float)$get('discount_amount') ?? 0;
+        $base = (float) $get('base_price') ?? 0;
+        $tax = (float) $get('tax_amount') ?? 0;
+        $disc = (float) $get('discount_amount') ?? 0;
         $set('total_amount', ($base + $tax) - $disc);
     }
 
@@ -400,6 +401,7 @@ class ReservationResource extends Resource
                         }
 
                         $firstGuest = $record->reservationGuests()->first();
+
                         return $firstGuest
                             ? trim("{$firstGuest->first_name} {$firstGuest->last_name}")
                             : 'No Guest Assigned';
@@ -416,7 +418,7 @@ class ReservationResource extends Resource
                 Tables\Columns\TextColumn::make('roomType.name')->label('Room Type'),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn (string $state): string => match ($state) {
                         'confirmed' => 'success',
                         'tentative' => 'info',
                         'waitlist' => 'warning',
@@ -440,9 +442,10 @@ class ReservationResource extends Resource
                     ]),
             ])
             ->actions([
+                ViewAction::make()->icon('heroicon-m-eye'),
                 EditAction::make()->icon('heroicon-m-pencil-square'),
                 DeleteAction::make()->icon('heroicon-m-trash'),
-                // ViewAction::make()->icon('heroicon-m-eye')->color('info'),
+
             ]);
     }
 
@@ -452,6 +455,7 @@ class ReservationResource extends Resource
             'index' => ListReservations::route('/'),
             'create' => CreateReservation::route('/create'),
             'edit' => EditReservation::route('/{record}/edit'),
+            'view' => ViewReservation::route('/{record}'),
         ];
     }
 
@@ -463,102 +467,102 @@ class ReservationResource extends Resource
         ];
     }
 
-    public static function infolist(Schema $schema): Schema
-    {
-        return $schema
-            ->components([
+    // public static function infolist(Schema $schema): Schema
+    // {
+    //     return $schema
+    //         ->components([
 
-                Tabs::make('Reservation Details')
-                    ->tabs([
+    //             Tabs::make('Reservation Details')
+    //                 ->tabs([
 
-                        Tab::make('Guest Information')
-                            ->icon('heroicon-m-user')
-                            ->schema([
+    //                     Tab::make('Guest Information')
+    //                         ->icon('heroicon-m-user')
+    //                         ->schema([
 
-                                RepeatableEntry::make('reservationGuests')
-                                    ->label('Guests')
-                                    ->schema([
+    //                             RepeatableEntry::make('reservationGuests')
+    //                                 ->label('Guests')
+    //                                 ->schema([
 
-                                        TextEntry::make('first_name')
-                                            ->label('First Name'),
+    //                                     TextEntry::make('first_name')
+    //                                         ->label('First Name'),
 
-                                        TextEntry::make('last_name')
-                                            ->label('Last Name'),
+    //                                     TextEntry::make('last_name')
+    //                                         ->label('Last Name'),
 
-                                        TextEntry::make('email'),
+    //                                     TextEntry::make('email'),
 
-                                        TextEntry::make('phone'),
+    //                                     TextEntry::make('phone'),
 
-                                        TextEntry::make('nationality'),
+    //                                     TextEntry::make('nationality'),
 
-                                        TextEntry::make('birthday')
-                                            ->date(),
+    //                                     TextEntry::make('birthday')
+    //                                         ->date(),
 
-                                        TextEntry::make('is_primary')
-                                            ->badge()
-                                            ->formatStateUsing(fn($state) => $state ? 'Primary Guest' : 'Guest')
-                                            ->color(fn($state) => $state ? 'success' : 'gray'),
-                                    ])
-                                    ->columns(3),
+    //                                     TextEntry::make('is_primary')
+    //                                         ->badge()
+    //                                         ->formatStateUsing(fn($state) => $state ? 'Primary Guest' : 'Guest')
+    //                                         ->color(fn($state) => $state ? 'success' : 'gray'),
+    //                                 ])
+    //                                 ->columns(3),
 
-                            ]),
+    //                         ]),
 
-                        Tab::make('Stay Details')
-                            ->icon('heroicon-m-calendar')
-                            ->schema([
+    //                     Tab::make('Stay Details')
+    //                         ->icon('heroicon-m-calendar')
+    //                         ->schema([
 
-                                Section::make()
-                                    ->schema([
+    //                             Section::make()
+    //                                 ->schema([
 
-                                        TextEntry::make('hotel.name')
-                                            ->label('Hotel'),
+    //                                     TextEntry::make('hotel.name')
+    //                                         ->label('Hotel'),
 
-                                        TextEntry::make('check_in')
-                                            ->date(),
+    //                                     TextEntry::make('check_in')
+    //                                         ->date(),
 
-                                        TextEntry::make('check_out')
-                                            ->date(),
+    //                                     TextEntry::make('check_out')
+    //                                         ->date(),
 
-                                        TextEntry::make('roomType.name')
-                                            ->label('Room Type'),
+    //                                     TextEntry::make('roomType.name')
+    //                                         ->label('Room Type'),
 
-                                        TextEntry::make('room_no')
-                                            ->label('Room Number'),
+    //                                     TextEntry::make('room_no')
+    //                                         ->label('Room Number'),
 
-                                    ])
-                                    ->columns(2),
+    //                                 ])
+    //                                 ->columns(2),
 
-                            ]),
+    //                         ]),
 
-                        Tab::make('Payment Information')
-                            ->icon('heroicon-m-credit-card')
-                            ->schema([
+    //                     Tab::make('Payment Information')
+    //                         ->icon('heroicon-m-credit-card')
+    //                         ->schema([
 
-                                TextEntry::make('payment_method')
-                                    ->badge()
-                                    ->color(fn($state) => match ($state) {
-                                        'credit_card' => 'success',
-                                        'cash' => 'info',
-                                        'bank_transfer' => 'warning',
-                                        default => 'gray',
-                                    }),
+    //                             TextEntry::make('payment_method')
+    //                                 ->badge()
+    //                                 ->color(fn($state) => match ($state) {
+    //                                     'credit_card' => 'success',
+    //                                     'cash' => 'info',
+    //                                     'bank_transfer' => 'warning',
+    //                                     default => 'gray',
+    //                                 }),
 
-                                TextEntry::make('card_number')
-                                    ->label('Card Number'),
+    //                             TextEntry::make('card_number')
+    //                                 ->label('Card Number'),
 
-                            ]),
+    //                         ]),
 
-                        Tab::make('Special Requests')
-                            ->icon('heroicon-m-chat-bubble-bottom-center-text')
-                            ->schema([
+    //                     Tab::make('Special Requests')
+    //                         ->icon('heroicon-m-chat-bubble-bottom-center-text')
+    //                         ->schema([
 
-                                TextEntry::make('special_requests')
-                                    ->placeholder('No special requests provided'),
+    //                             TextEntry::make('special_requests')
+    //                                 ->placeholder('No special requests provided'),
 
-                            ]),
+    //                         ]),
 
-                    ]),
+    //                 ]),
 
-            ]);
-    }
+    //         ]);
+    // }
 }

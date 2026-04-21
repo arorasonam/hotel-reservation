@@ -18,10 +18,10 @@ return new class extends Migration
 
             // Extended Profile (for the Popup requirements)
             $table->string('gender')->nullable();
-            $table->date('dob')->nullable();y
+            $table->date('dob')->nullable();
             $table->string('nationality')->nullable();
             $table->string('purpose_of_visit')->nullable();
-            $table->text('guest_preferences')i->nullable();
+            $table->text('guest_preferences')->nullable();
 
             // System Role
             $table->string('role')->default('user')->after('password');
@@ -43,7 +43,7 @@ return new class extends Migration
                 'nationality',
                 'purpose_of_visit',
                 'guest_preferences',
-                'role'
+                'role',
             ]);
         });
     }

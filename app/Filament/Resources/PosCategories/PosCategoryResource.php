@@ -5,21 +5,17 @@ namespace App\Filament\Resources\PosCategories;
 use App\Filament\Resources\PosCategories\Pages\CreatePosCategory;
 use App\Filament\Resources\PosCategories\Pages\EditPosCategory;
 use App\Filament\Resources\PosCategories\Pages\ListPosCategories;
-use App\Filament\Resources\PosCategories\Schemas\PosCategoryForm;
-use App\Filament\Resources\PosCategories\Tables\PosCategoriesTable;
 use App\Models\PosCategory;
 use BackedEnum;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Filters\TernaryFilter;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Select;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 use UnitEnum;
 
 class PosCategoryResource extends Resource
@@ -41,10 +37,13 @@ class PosCategoryResource extends Resource
                 Select::make('pos_outlet_id')
                     ->relationship('outlet', 'name')
                     ->required(),
-
                 TextInput::make('name')
                     ->required(),
-
+                Select::make('tax_id')
+                    ->relationship('tax', 'name')
+                    ->label('Category Tax')
+                    ->searchable()
+                    ->preload(),
                 Toggle::make('status')
                     ->default(true),
             ]);
@@ -56,18 +55,18 @@ class PosCategoryResource extends Resource
             ->columns([
                 TextColumn::make('outlet.name')
                     ->label('Outlet'),
-
                 TextColumn::make('name'),
-
-                IconColumn::make('status')->boolean(),
+                TextColumn::make('tax.name')
+                    ->label('Tax')
+                    ->placeholder('No tax'),
+                IconColumn::make('status')
+                    ->boolean(),
             ]);
     }
 
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     public static function getPages(): array

@@ -48,7 +48,7 @@ class ReservationFolioIntegrationTest extends TestCase
             'tax_amount' => 180,
             'discount_amount' => 50,
             'grand_total' => 1130,
-            'status' => 'confirmed',
+            'status' => 'checked_in',
             'created_by' => $this->createUser(),
         ]);
 

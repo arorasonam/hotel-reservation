@@ -29,7 +29,7 @@ class Reservation extends Model
         'booking_source_id',
         'booking_type_id',
         'source_market_id',
-        'reservation_number'
+        'reservation_number',
     ];
 
     protected function casts(): array
@@ -53,11 +53,11 @@ class Reservation extends Model
 
                 // 2. Count how many reservations already exist for THIS hotel prefix
                 // This ensures the first one is always 1, the second is 2, etc.
-                $count = self::where('reservation_number', 'like', $hotelPrefix . '_%')->count();
+                $count = self::where('reservation_number', 'like', $hotelPrefix.'_%')->count();
                 $nextId = $count + 1;
 
                 // 3. Generate the formatted string: THE_0000001
-                $reservation->reservation_number = $hotelPrefix . '_' . str_pad($nextId, 7, '0', STR_PAD_LEFT);
+                $reservation->reservation_number = $hotelPrefix.'_'.str_pad($nextId, 7, '0', STR_PAD_LEFT);
             }
         });
 
@@ -154,5 +154,10 @@ class Reservation extends Model
     public function posOrders(): HasMany
     {
         return $this->hasMany(PosOrder::class);
+    }
+
+    public function isCheckedIn(): bool
+    {
+        return strtolower((string) $this->status) === 'checked_in';
     }
 }

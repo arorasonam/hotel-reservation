@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PosOrder;
+use App\Models\PosPayment;
 use App\Models\Reservation;
 use App\Models\ReservationFolio;
 use Carbon\Carbon;
@@ -47,8 +48,11 @@ class ReservationFolioService
         }
 
         $reservation = $order->reservation;
-        // added by GP $order->status === 'draft'
-        if (! $reservation || $order->status === 'draft') {
+
+        // if (! $reservation || ! $reservation->isCheckedIn() || $order->status === 'draft') {
+         if (! $reservation || $order->status === 'draft') {
+            // $this->deleteEntriesForSource('pos_order', $order->id);
+
             return;
         }
 
@@ -98,6 +102,55 @@ class ReservationFolioService
             ->where('source', $source)
             ->where('source_id', $sourceId)
             ->delete();
+    }
+
+    public function syncPosPayment(PosPayment $payment): void
+    {
+        $order = $payment->order;
+
+        if (! $order) {
+            $this->deleteEntry('pos_payment', $payment->id, 'payment');
+
+            return;
+        }
+
+        if ($order->status === 'draft') {
+            $order->forceFill([
+                'status' => 'confirmed',
+            ])->save();
+
+            $order->refresh();
+        }
+
+        $this->syncPosOrderCharges($order);
+
+        if (! $order->reservation_id || $payment->payment_method === 'room_posting') {
+            $this->deleteEntry('pos_payment', $payment->id, 'payment');
+
+            return;
+        }
+
+        $reservation = $order->reservation;
+
+        if (! $reservation || ! $reservation->isCheckedIn()) {
+            $this->deleteEntry('pos_payment', $payment->id, 'payment');
+
+            return;
+        }
+
+        $this->upsertEntry(
+            reservation: $reservation,
+            source: 'pos_payment',
+            sourceId: $payment->id,
+            sourceKey: 'payment',
+            description: 'POS payment - Order #'.$order->order_number,
+            amount: (float) $payment->amount,
+            type: 'credit',
+            entryType: 'payment',
+            postedAt: $payment->paid_at ?? $payment->created_at ?? now(),
+            reference: $payment->transaction_reference ?: $order->order_number,
+            notes: ucfirst((string) $payment->payment_method),
+        );
     }
 
     public function deleteEntry(string $source, int|string $sourceId, string $sourceKey): void
