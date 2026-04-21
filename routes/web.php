@@ -35,6 +35,12 @@ Route::middleware(['web', 'auth'])->prefix('filament')->group(function () {
     Route::get('/reservations/{reservation}/invoice', [ReservationInvoiceController::class, 'print'])
         ->name('reservations.invoice.print');
 
+    Route::get('/reservations/{reservation}/folios/master/print', [ReservationInvoiceController::class, 'printMasterFolio'])
+        ->name('reservations.folios.master.print');
+
+    Route::get('/reservations/{reservation}/folios/{reservationRoom}/print', [ReservationInvoiceController::class, 'printRoomFolio'])
+        ->name('reservations.folios.room.print');
+
     Route::get('/reservations/{reservation}/invoice/download', [ReservationInvoiceController::class, 'download'])
         ->name('reservations.invoice.download');
 });

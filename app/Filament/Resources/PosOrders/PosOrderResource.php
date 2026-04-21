@@ -10,7 +10,7 @@ use App\Models\PosCategory;
 use App\Models\PosItem;
 use App\Models\PosOrder;
 use App\Models\PosOutlet;
-use App\Models\Reservation;
+use App\Models\ReservationRoom;
 use App\Services\ReservationFolioService;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -101,64 +101,57 @@ class PosOrderResource extends Resource
                     ->label('Table No')
                     ->maxLength(50)
                     ->visible(fn ($get) => $get('order_type') !== 'takeaway'),
-                Select::make('reservation_id')
-                    ->relationship(
-                        name: 'reservation',
-                        titleAttribute: 'id',
-                        modifyQueryUsing: fn ($query) => $query->where('status', 'check_in')
-                    )
-                    ->searchable(['id', 'reservation_number'])
+                Hidden::make('reservation_id')
+                    ->dehydrated(true),
+                Select::make('reservation_room_id')
+                    ->label('Room Posting')
                     ->getSearchResultsUsing(function (string $search) {
-                        return Reservation::query()
-                            ->where('status', 'confirmed')
-                            ->whereNotNull('reservation_number')
+                        return ReservationRoom::query()
+                            // ->where('status', 'checked_in')
+                            ->whereHas('reservation')
                             ->where(function ($query) use ($search) {
-                                $query->where('reservation_number', 'like', "%{$search}%")
-                                    ->orWhere('room_no', 'like', "%{$search}%")
-                                    ->orWhereHas('reservationGuests', function ($q) use ($search) {
-                                        $q->where('first_name', 'like', "%{$search}%")
-                                            ->orWhere('last_name', 'like', "%{$search}%");
+                                $query->where('room_number', 'like', "%{$search}%")
+                                    ->orWhereHas('reservation', function ($reservationQuery) use ($search) {
+                                        $reservationQuery->where('reservation_number', 'like', "%{$search}%")
+                                            ->orWhereHas('reservationGuests', function ($guestQuery) use ($search) {
+                                                $guestQuery->where('first_name', 'like', "%{$search}%")
+                                                    ->orWhere('last_name', 'like', "%{$search}%");
+                                            });
                                     });
                             })
-                            ->with('reservationGuests')
+                            ->with(['reservation.reservationGuests'])
                             ->limit(50)
                             ->get()
-                            ->mapWithKeys(function ($record) {
-                                $guest = $record->reservationGuests->first();
-
-                                return [
-                                    $record->id => ($guest?->first_name ?? '').' '
-                                        .($guest?->last_name ?? '')
-                                        ." - #{$record->reservation_number}",
-                                ];
-                            });
+                            ->mapWithKeys(fn (ReservationRoom $roomStay) => [
+                                $roomStay->id => $roomStay->display_name,
+                            ]);
                     })
-                    ->reactive()
-                    ->getOptionLabelUsing(function ($value): ?string {
-                        $reservation = Reservation::find($value);
-                        $guest = $reservation->reservationGuests->first();
-
-                        if (! $reservation) {
-                            return null;
-                        }
-
-                        return "{$guest->first_name} {$guest->last_name} - #{$reservation->reservation_number}";
-                    })
+                    ->getOptionLabelUsing(fn ($value): ?string => ReservationRoom::with('reservation.reservationGuests')->find($value)?->display_name)
                     ->afterStateUpdated(function ($state, callable $set): void {
-                        $reservation = Reservation::find($state);
+                        $roomStay = ReservationRoom::with('reservation')->find($state);
 
-                        if (! $reservation) {
+                        if (! $roomStay) {
+                            $set('reservation_id', null);
+                            $set('room_id', null);
+                            $set('guest_id', null);
+
                             return;
                         }
 
-                        $room = HotelRoom::where('room_number', $reservation->room_no)->first();
+                        $room = HotelRoom::query()
+                            ->where('room_number', $roomStay->room_number)
+                            ->where('hotel_id', $roomStay->reservation?->hotel_id)
+                            ->first();
 
                         if ($room) {
                             $set('room_id', $room->id);
                         }
 
-                        $set('guest_id', $reservation->guest_id);
+                        $set('reservation_id', $roomStay->reservation_id);
+                        $set('guest_id', $roomStay->reservation?->guest_id);
                     })
+                    ->searchable()
+                    ->reactive()
                     ->visible(fn ($get) => $get('order_type') === 'room_charge')
                     ->required(fn ($get) => $get('order_type') === 'room_charge'),
                 Select::make('room_id')
@@ -183,6 +176,7 @@ class PosOrderResource extends Resource
                     ])
                     ->default('draft')
                     ->required(),
+
                 Repeater::make('items')
                     ->relationship()
                     ->columnSpanFull()
@@ -191,7 +185,7 @@ class PosOrderResource extends Resource
                             ->dehydrated(true),
                         Select::make('pos_category_id')
                             ->label('Category')
-                            ->dehydrated(false)
+                            // ->dehydrated(false)
                             ->options(function ($livewire): array {
                                 $outletId = data_get($livewire->data, 'pos_outlet_id');
 
@@ -218,7 +212,7 @@ class PosOrderResource extends Resource
                                 $set('total', 0);
                             }),
                         Select::make('pos_item_id')
-                            ->relationship('item', 'name')
+                            // ->relationship('item', 'name')
                             ->options(function ($livewire, callable $get): array {
                                 $outletId = data_get($livewire->data, 'pos_outlet_id');
                                 $categoryId = $get('pos_category_id');
@@ -249,11 +243,36 @@ class PosOrderResource extends Resource
                                 $price = $item->price;
                                 $qty = $get('quantity') ?? 1;
                                 $taxPercent = $tax?->percentage ?? 0;
+                
                                 $subtotal = $price * $qty;
                                 $taxAmount = ($subtotal * $taxPercent) / 100;
                                 $total = $subtotal + $taxAmount;
 
                                 $set('tax_id', $taxId);
+                                $set('price', $price);
+                                $set('tax_percentage', $taxPercent);
+                                $set('subtotal', $subtotal);
+                                $set('tax_amount', $taxAmount);
+                                $set('total', $total);
+                            })
+                            ->afterStateHydrated(function ($state, callable $set, callable $get) {
+
+                                if (! $state) return;
+
+                                $item = \App\Models\PosItem::find($state);
+
+                                if (! $item) return;
+
+                                $tax = $item->category?->tax;
+                                $taxPercent = $tax?->percentage ?? 0;
+                                $price = $item->price;
+                                $qty = $get('quantity') ?? 1;
+
+                                $subtotal = $price * $qty;
+                                $taxAmount = ($subtotal * $taxPercent) / 100;
+                                $total = $subtotal + $taxAmount;
+
+                                $set('tax_id', $tax?->id);
                                 $set('price', $price);
                                 $set('tax_percentage', $taxPercent);
                                 $set('subtotal', $subtotal);
@@ -287,6 +306,7 @@ class PosOrderResource extends Resource
                             ->content(fn ($get) => ($get('tax_percentage') ?? 0).'%'),
                         TextInput::make('tax_percentage')
                             ->hidden()
+                            ->reactive()
                             ->dehydrated(true),
                         TextInput::make('subtotal')
                             ->numeric()
@@ -301,6 +321,27 @@ class PosOrderResource extends Resource
                             ->disabled()
                             ->dehydrated(true),
                     ])
+                    ->mutateRelationshipDataBeforeSaveUsing(function (array $data): array {
+
+                        $price = $data['price'] ?? 0;
+                        $qty = $data['quantity'] ?? 1;
+
+                        if (!empty($data['tax_id'])) {
+                            $tax = \App\Models\Tax::find($data['tax_id']);
+                            $taxPercent = $tax?->percentage ?? 0;
+                        } else {
+                            $taxPercent = 0;
+                        }
+
+                        $subtotal = $price * $qty;
+                        $taxAmount = ($subtotal * $taxPercent) / 100;
+
+                        $data['tax_percentage'] = $taxPercent;
+                        $data['tax_amount'] = $taxAmount;
+                        $data['total'] = $subtotal + $taxAmount;
+
+                        return $data;
+                    })
                     ->columns(8)
                     ->required(),
             ]);
@@ -312,6 +353,9 @@ class PosOrderResource extends Resource
             ->columns([
                 TextColumn::make('reservation.reservation_number')
                     ->label('Reservation'),
+                TextColumn::make('reservationRoom.room_number')
+                    ->label('Stay Room')
+                    ->placeholder('N/A'),
                 TextColumn::make('room.room_number')
                     ->label('Room No'),
                 TextColumn::make('table_no')
@@ -375,7 +419,7 @@ class PosOrderResource extends Resource
                             'settled_at' => (float) $record->grand_total <= 0 ? now() : null,
                         ]);
 
-                        app(ReservationFolioService::class)->syncPosOrderCharges($record->fresh(['reservation']));
+                        app(ReservationFolioService::class)->syncPosOrderCharges($record->fresh(['reservation', 'reservationRoom']));
                     }),
                 ViewAction::make(),
                 EditAction::make(),

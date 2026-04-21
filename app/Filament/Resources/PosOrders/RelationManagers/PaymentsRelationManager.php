@@ -40,6 +40,7 @@ class PaymentsRelationManager extends RelationManager
                     ->mutateFormDataUsing(function (array $data): array {
                         $data['pos_order_id'] = $this->getOwnerRecord()->id;
                         $data['reservation_id'] = $this->getOwnerRecord()->reservation_id;
+                        $data['reservation_room_id'] = $this->getOwnerRecord()->reservation_room_id;
                         $data['received_by'] = Auth::id();
 
                         return $data;

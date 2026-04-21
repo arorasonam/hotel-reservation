@@ -62,7 +62,9 @@ class Reservation extends Model
         });
 
         static::saved(function (Reservation $reservation): void {
-            app(ReservationFolioService::class)->syncReservationStayCharge($reservation);
+            if (! $reservation->reservationRooms()->exists()) {
+                app(ReservationFolioService::class)->syncReservationStayCharge($reservation);
+            }
         });
     }
 

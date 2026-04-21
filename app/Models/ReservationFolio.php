@@ -9,6 +9,7 @@ class ReservationFolio extends Model
 {
     protected $fillable = [
         'reservation_id',
+        'reservation_room_id',
         'source',
         'source_id',
         'source_key',
@@ -32,6 +33,11 @@ class ReservationFolio extends Model
     public function reservation(): BelongsTo
     {
         return $this->belongsTo(Reservation::class);
+    }
+
+    public function reservationRoom(): BelongsTo
+    {
+        return $this->belongsTo(ReservationRoom::class);
     }
 
     public function getSignedAmountAttribute(): float

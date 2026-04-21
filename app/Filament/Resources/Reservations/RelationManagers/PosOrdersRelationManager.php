@@ -20,6 +20,9 @@ class PosOrdersRelationManager extends RelationManager
                 TextColumn::make('order_number'),
                 TextColumn::make('order_type'),
                 TextColumn::make('outlet.name'),
+                TextColumn::make('reservationRoom.room_number')
+                    ->label('Stay Room')
+                    ->placeholder('N/A'),
                 TextColumn::make('table_no')
                     ->placeholder('N/A'),
                 TextColumn::make('grand_total')
