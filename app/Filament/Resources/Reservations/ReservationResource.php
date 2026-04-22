@@ -11,6 +11,7 @@ use Filament\Schemas\Schema; // Using Schema instead of Form
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Grid;
@@ -42,6 +43,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\BadgeEntry;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Forms\Components\FileUpload;
 
 class ReservationResource extends Resource
 {
@@ -79,8 +81,16 @@ class ReservationResource extends Resource
                                     ->compact()
                                     ->schema([
                                         Select::make('hotel_id')
+                                            ->label('Hotel')
                                             ->relationship('hotel', 'name')
-                                            ->live()->required()->inlineLabel(),
+                                            // Use a non-closure default first to see if it sticks, 
+                                            // or keep the closure but ensure it returns a valid ID
+                                            ->default(fn() => \App\Models\Hotel::first()?->id)
+                                            ->required()
+                                            ->live()
+                                            ->preload() // Added preload to ensure the list is ready in the UI
+                                            ->native(false)
+                                            ->inlineLabel(),
                                         Grid::make(2)->schema([
                                             Select::make('booking_source_id')
                                                 ->label('Booking Source')
@@ -122,7 +132,7 @@ class ReservationResource extends Resource
                                                 ->preload()
                                                 ->native(false)
                                                 ->inlineLabel(),
-                                            Select::make('breakfast_plan')->label('Breakfast')->options(['yes' => 'Yes', 'no' => 'No'])->inlineLabel(),
+                                            Select::make('breakfast')->label('Breakfast')->options(['1' => 'Yes', '0' => 'No'])->native(false)->inlineLabel(),
                                         ]),
 
                                         // RESTORED: Special PMS Checkboxes
@@ -149,11 +159,10 @@ class ReservationResource extends Resource
                                 Section::make('Category Selection')
                                     ->compact()
                                     ->schema([
-
-
-                                        Repeater::make('room_requirements')
-                                            ->relationship('room_requirements')
+                                        Repeater::make('roomCategories')
+                                            ->relationship('roomCategories')
                                             ->schema([
+                                                Hidden::make('id'),
                                                 // The "Similar to above" Toggle
                                                 Toggle::make('similar_to_above')
                                                     ->label('Same as first category')
@@ -162,7 +171,7 @@ class ReservationResource extends Resource
                                                     ->afterStateUpdated(function ($state, $set, $get) {
                                                         if ($state) {
                                                             // Get all repeater items
-                                                            $items = $get('../../room_requirements');
+                                                            $items = $get('../../roomCategories') ?? [];
 
                                                             // Grab the first item in the list
                                                             $firstItem = $items[array_key_first($items)] ?? null;
@@ -170,7 +179,7 @@ class ReservationResource extends Resource
                                                             if ($firstItem) {
                                                                 // Sync all fields from the first item to this item
                                                                 $set('room_type_id', $firstItem['room_type_id'] ?? null);
-                                                                $set('meal_plan', $firstItem['meal_plan'] ?? 'EP');
+                                                                $set('meal_plan_id', $firstItem['meal_plan_id'] ?? null);
                                                                 $set('rooms_count', $firstItem['rooms_count'] ?? 1);
                                                                 $set('adults', $firstItem['adults'] ?? 2);
                                                                 $set('children', $firstItem['children'] ?? 0);
@@ -179,30 +188,54 @@ class ReservationResource extends Resource
                                                         }
                                                     })
                                                     // Hide the toggle on the very first item since there is nothing "above" it
-                                                    ->hidden(fn($get) => array_key_first($get('../../room_requirements')) === $get('uuid')),
+                                                    ->hidden(fn($get) => array_key_first($get('../../roomCategories') ?? []) === $get('uuid')),
 
                                                 Grid::make(3)->schema([
                                                     Select::make('room_type_id')
                                                         ->label('Category')
-                                                        ->options(fn($get) => \App\Models\RoomType::pluck('name', 'id'))
-                                                        ->live()->required()
-                                                        ->disabled(fn($get) => $get('similar_to_above')), // Lock field if synced
+                                                        ->options(fn() => \App\Models\RoomType::pluck('name', 'id'))
+                                                        ->live()
+                                                        ->required()
+                                                        ->afterStateUpdated(function ($state, $set, $get) {
+                                                            if (!$state) return;
+
+                                                            // Fetch first room and first meal plan
+                                                            $firstRoom = \App\Models\HotelRoom::where('room_type_id', $state)
+                                                                ->where('status', 'vacant')
+                                                                ->orderBy('room_number')
+                                                                ->value('room_number');
+
+                                                            $hotelId = $get('../../hotel_id');
+                                                            $firstMealPlan = \App\Models\MealPlan::where('hotel_id', $hotelId)
+                                                                ->where('room_type_id', (int) $state)
+                                                                ->where('is_active', true)
+                                                                ->value('id');
+
+                                                            // Set category-level defaults
+                                                            $set('meal_plan_id', $firstMealPlan);
+
+                                                            // Ensure rooms_count is at least 1
+                                                            if (!$get('rooms_count')) {
+                                                                $set('rooms_count', 1);
+                                                            }
+
+                                                            // Initialize the first room row
+                                                            $set('roomDetails', [[
+                                                                'adults' => 2,
+                                                                'children' => 0,
+                                                                'infant' => 0,
+                                                                'room_number' => $firstRoom ?? 'Auto',
+                                                            ]]);
+                                                        }),
 
                                                     Select::make('meal_plan_id')
                                                         ->label('Meal Plan')
                                                         ->placeholder('Select Plan')
                                                         ->options(function ($get) {
-                                                            // 1. Get the Room Type from the current repeater row
                                                             $roomTypeId = $get('room_type_id');
-
-                                                            // 2. Get the Hotel ID from the parent form
                                                             $hotelId = $get('../../hotel_id');
+                                                            if (!$roomTypeId || !$hotelId) return [];
 
-                                                            // Return empty if either is missing to prevent errors
-                                                            if (!$roomTypeId || !$hotelId) {
-                                                                return [];
-                                                            }
-                                                            // 3.   Fetch meal plans specific to this property AND category
                                                             return \App\Models\MealPlan::where('hotel_id', $hotelId)
                                                                 ->where('room_type_id', (int) $roomTypeId)
                                                                 ->where('is_active', true)
@@ -211,34 +244,72 @@ class ReservationResource extends Resource
                                                         ->live()
                                                         ->required()
                                                         ->native(false)
-                                                        ->disabled(fn($get) => !$get('room_type_id') || $get('similar_to_above')),
+                                                        ->default(function ($get) {
+                                                            $roomTypeId = $get('room_type_id');
+                                                            $hotelId = $get('../../hotel_id');
+                                                            if (!$roomTypeId || !$hotelId) return null;
+
+                                                            return \App\Models\MealPlan::where('hotel_id', $hotelId)
+                                                                ->where('room_type_id', (int) $roomTypeId)
+                                                                ->where('is_active', true)
+                                                                ->orderBy('name')
+                                                                ->value('id');
+                                                        }),
 
                                                     Select::make('rooms_count')
                                                         ->label('Rooms')
                                                         ->options([1 => 1, 2 => 2, 3 => 3, 4 => 4, 5 => 5])
-                                                        ->live()
                                                         ->default(1)
-                                                        ->columnSpan(1)
-                                                        ->afterStateUpdated(function ($state, $set, $get) {
-                                                            // Logic to pre-populate the 'Requirements' section based on count
-                                                            $requirements = [];
-                                                            for ($i = 1; $i <= (int)$state; $i++) {
-                                                                $requirements[] = [
+                                                        ->live()
+                                                        ->afterStateHydrated(function ($state, $set, $get) {
+                                                            // If it's a new record and no details exist, create the first row
+                                                            if (!$get('roomDetails')) {
+                                                                $roomTypeId = $get('room_type_id');
+                                                                $firstRoom = $roomTypeId
+                                                                    ? \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                    ->where('status', 'vacant')
+                                                                    ->orderBy('room_number')
+                                                                    ->value('room_number')
+                                                                    : 'Auto';
+
+                                                                $set('roomDetails', [[
                                                                     'adults' => 2,
                                                                     'children' => 0,
                                                                     'infant' => 0,
-                                                                    'room_number' => 'Auto',
+                                                                    'room_number' => $firstRoom ?? 'Auto',
+                                                                ]]);
+                                                            }
+                                                        })
+                                                        ->afterStateUpdated(function ($state, $set, $get) {
+                                                            $roomTypeId = $get('room_type_id');
+
+                                                            $firstAvailableRoom = $roomTypeId
+                                                                ? \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                ->where('status', 'vacant')
+                                                                ->orderBy('room_number')
+                                                                ->value('room_number')
+                                                                : 'Auto';
+
+                                                            $details = [];
+                                                            for ($i = 1; $i <= (int)$state; $i++) {
+                                                                $details[] = [
+                                                                    'adults' => 2,
+                                                                    'children' => 0,
+                                                                    'infant' => 0,
+                                                                    'room_number' => $firstAvailableRoom ?? 'Auto',
                                                                 ];
                                                             }
-                                                            $set('requirements', $requirements);
+                                                            $set('roomDetails', $details);
                                                         }),
                                                 ]),
 
                                                 Section::make('Requirements')
                                                     ->collapsible()
                                                     ->schema([
-                                                        Repeater::make('requirements')
+                                                        Repeater::make('roomDetails')
+                                                            ->relationship('roomDetails')
                                                             ->schema([
+                                                                Hidden::make('id'),
                                                                 Grid::make(6)->schema([
                                                                     Placeholder::make('room_label')
                                                                         ->label('')
@@ -253,22 +324,38 @@ class ReservationResource extends Resource
                                                                         ->options([0 => 0, 1 => 1, 2 => 2])
                                                                         ->default(0),
 
-                                                                    Select::make('infant')
+                                                                    Select::make('infants')
                                                                         ->options([0 => 0, 1 => 1])
                                                                         ->default(0),
 
                                                                     Select::make('room_number')
                                                                         ->label('Room No.')
                                                                         ->options(function ($get) {
+                                                                            // Use the path to the parent Category
                                                                             $roomTypeId = $get('../../room_type_id');
-                                                                            if (!$roomTypeId) return ['Auto' => 'Auto'];
+                                                                            if (!$roomTypeId) return [];
 
                                                                             return \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
                                                                                 ->where('status', 'vacant')
                                                                                 ->pluck('room_number', 'room_number')
                                                                                 ->toArray();
                                                                         })
-                                                                        ->default('Auto')
+                                                                        ->live()
+                                                                        ->required()
+                                                                        ->native(false)
+                                                                        // This hook triggers when the OPTIONS for this field are updated
+                                                                        ->afterStateHydrated(function ($state, $set, $get) {
+                                                                            if (!$state) {
+                                                                                $roomTypeId = $get('../../room_type_id');
+                                                                                if ($roomTypeId) {
+                                                                                    $firstRoom = \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                                        ->where('status', 'vacant')
+                                                                                        ->orderBy('room_number')
+                                                                                        ->value('room_number');
+                                                                                    $set('room_number', $firstRoom);
+                                                                                }
+                                                                            }
+                                                                        })
                                                                         ->columnSpan(2),
                                                                 ]),
                                                             ])
@@ -295,13 +382,40 @@ class ReservationResource extends Resource
                                                     ->label('Find Existing Guest')
                                                     ->relationship('guest', 'first_name')
                                                     ->getOptionLabelFromRecordUsing(fn($record) => "{$record->first_name} {$record->last_name}")
-                                                    ->searchable(['first_name', 'last_name', 'email'])
+                                                    ->searchable(['first_name', 'last_name', 'email', 'phone'])
                                                     ->createOptionForm([
                                                         Grid::make(2)->schema([
                                                             TextInput::make('first_name')->required(),
                                                             TextInput::make('last_name')->required(),
                                                             TextInput::make('email')->email(),
                                                             TextInput::make('phone')->tel(),
+                                                            DatePicker::make('birthday')->date(),
+                                                            TextInput::make('nationality'),
+                                                            Select::make('identity_type')
+                                                                ->options([
+                                                                    'adhaar_card' => 'Adhaar Card',
+                                                                    'payment_receipt' => 'Payment Receipt',
+                                                                    'travel_auhtorization' => 'Travel Auhtorization',
+                                                                    'cwt_document' => 'CWT Document',
+                                                                    'carnet_de_ext' => 'Carnet De Ext.',
+                                                                    'fund_certificate' => 'Fund Certificate'
+                                                                ]),
+                                                            TextInput::make('identity_number'),
+
+                                                            DatePicker::make('identity_expiry'),
+
+                                                            FileUpload::make('identity_document')
+                                                                ->label('Upload Identity Proof')
+                                                                ->disk('public')   // REQUIRED
+                                                                ->directory('guest-identities')
+                                                                ->acceptedFileTypes([
+                                                                    'image/jpeg',
+                                                                    'image/png',
+                                                                    'application/pdf'
+                                                                ])
+                                                                ->maxSize(2048)
+                                                                ->downloadable()
+                                                                ->openable()
                                                         ]),
                                                     ])
                                                     ->afterStateUpdated(function ($state, $set) {
@@ -310,12 +424,16 @@ class ReservationResource extends Resource
                                                         if ($guest) {
                                                             $set('first_name', $guest->first_name);
                                                             $set('last_name', $guest->last_name);
+                                                            $set('phone', $guest->phone);
+                                                            $set('email', $guest->email);
                                                         }
                                                     })->live()->columnSpanFull(),
 
                                                 Grid::make(2)->schema([
                                                     TextInput::make('first_name')->required(),
                                                     TextInput::make('last_name')->required(),
+                                                    TextInput::make('email')->required()->email(),
+                                                    TextInput::make('phone')->required()->tel(),
                                                 ]),
                                                 Toggle::make('is_primary')->label('Primary Guest')->onIcon('heroicon-m-star'),
                                             ])->addActionLabel('Add Guest')->collapsible(),

@@ -6,24 +6,25 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Run the migrations.
+     */
     public function up(): void
     {
         Schema::table('reservations', function (Blueprint $table) {
-            // Use foreignUuid if your Hotel model uses UUIDs, 
-            // otherwise use foreignId for standard integers.
-            $table->foreignUuid('hotel_id')
-                ->nullable()
-                ->after('id')
-                ->constrained('hotels')
-                ->onDelete('set null');
+            // Inclusions
+            if (!Schema::hasColumn('reservations', 'type')) $table->string('type')->nullable();
+            if (!Schema::hasColumn('reservations', 'rate_plan')) $table->string('rate_plan')->nullable();
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
         Schema::table('reservations', function (Blueprint $table) {
-            $table->dropForeign(['hotel_id']);
-            $table->dropColumn('hotel_id');
+            $table->dropColumn(['type', 'rate_plan']);
         });
     }
 };

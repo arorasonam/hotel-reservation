@@ -22,10 +22,10 @@ class CreateReservation extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         // 1. Pull the raw repeater data out of the main data array
-        $this->temporary_room_data = $data['room_requirements'] ?? [];
+        $this->temporary_room_data = $data['roomCategories'] ?? [];
 
         // 2. Remove it so Filament doesn't try to save it as an array string
-        unset($data['room_requirements']);
+        unset($data['roomCategories']);
 
         return $data;
     }
@@ -33,21 +33,28 @@ class CreateReservation extends CreateRecord
     protected function afterCreate(): void
     {
         $reservation = $this->record;
+        // Extract the raw form state
+        $formState = $this->form->getRawState();
 
-        // 3. Loop through categories (e.g., Arena DBL, Garden Dbl)
-        foreach ($this->temporary_room_data as $category) {
+        foreach ($formState['roomCategories'] as $categoryData) {
+            // 1. Create the Category Summary
+            $category = $reservation->roomCategories()->create([
+                'room_type_id' => $categoryData['room_type_id'],
+                'meal_plan_id' => $categoryData['meal_plan_id'],
+                'rooms_count'  => $categoryData['rooms_count'],
+            ]);
 
-            // 4. Loop through each specific room requirement in that category
-            foreach ($category['requirements'] as $roomDetail) {
-                $reservation->reservationRooms()->create([
-                    'room_type_id' => $category['room_type_id'],
-                    'meal_plan_id' => $category['meal_plan_id'],
-                    'room_number'  => $roomDetail['room_number'] ?? 'Auto',
-                    'adults'       => $roomDetail['adults'] ?? 2,
-                    'children'     => $roomDetail['children'] ?? 0,
-                    'infant'       => $roomDetail['infant'] ?? 0,
-                    'status'       => 'confirmed', // Required for your calendar
-                ]);
+            // 2. Create individual Detail records based on the nested "Requirements" repeater
+            if (isset($categoryData['roomDetails'])) {
+                foreach ($categoryData['roomDetails'] as $roomDetail) {
+                    $category->roomDetails()->create([
+                        'room_number' => $roomDetail['room_number'] ?? 'Auto',
+                        'adults'      => $roomDetail['adults'] ?? 2,
+                        'children'    => $roomDetail['children'] ?? 0,
+                        'infants'     => $roomDetail['infant'] ?? 0,
+                        'status'      => 'confirmed',
+                    ]);
+                }
             }
         }
     }

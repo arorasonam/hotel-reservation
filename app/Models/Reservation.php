@@ -29,7 +29,10 @@ class Reservation extends Model
         'booking_source_id',
         'booking_type_id',
         'source_market_id',
-        'reservation_number'
+        'reservation_number',
+        'breakfast',
+        'type',
+        'rate_plan',
     ];
 
     protected function casts(): array
@@ -116,10 +119,9 @@ class Reservation extends Model
         return $this->belongsTo(SourceMarket::class, 'source_market_id');
     }
 
-    public function reservationRooms()
+    public function roomCategories(): HasMany
     {
-        // Links to the repeater data table
-        return $this->hasMany(ReservationRoom::class, 'reservation_id');
+        return $this->hasMany(ReservationRoomCategory::class);
     }
 
     public function folios(): HasMany

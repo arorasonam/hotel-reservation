@@ -1099,6 +1099,7 @@
             <div class="pop-badges">
                 <span class="pop-badge-status" id="pop-status">CONFIRMED</span>
                 <span class="pop-badge-source" id="pop-source">Direct</span>
+
             </div>
             <div class="pop-divider"></div>
             <div class="pop-billing">
@@ -1255,7 +1256,7 @@
             }
 
             function fmtISO(d) {
-                return d.toISOString().slice(0, 10);
+                return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
             }
 
             function pad2(n) {
@@ -1332,7 +1333,7 @@
 
                 // Populate the row
                 days.forEach(d => {
-                    const iso = fmtISO(d);
+                    const iso = fmtISO(d); // This produces YYYY-MM-DD
                     const vc = mkEl('div', 'hc-vacant-cell' + (iso === today ? ' today-col' : ''));
 
                     // Updated Logic: Count the room as occupied if:
@@ -1343,7 +1344,7 @@
                         if (isSameDay) {
                             return iso === b.check_in; // Count on that single day
                         }
-                        return iso >= b.check_in && iso < b.check_out; // Standard range
+                        return iso >= b.check_in && iso < b.check_out;
                     }).length;
 
                     vc.textContent = Math.max(0, baseCount - occupiedToday);
@@ -1487,15 +1488,16 @@
                             console.log('/BOOKINGS', BOOKINGS)
                             /* Booking chips */
                             BOOKINGS.forEach(b => {
+                                // Ensure room_no comes from reservation_room_details
                                 const bookingRoom = String(b.room_no || '').trim();
                                 const gridRoom = String(roomNo || '').trim();
-                                console.log(`Comparing booking room "${bookingRoom}" with grid room "${gridRoom}" for date ${iso}`);
-                                // ADD THIS DEBUG LINE
-                                if (iso === b.check_in) {
-                                    console.log(`Checking Room ${gridRoom} against Booking Room ${bookingRoom} for date ${iso}`);
-                                }
+                                console.log(`Checking booking ${b.id} for room ${bookingRoom} against grid room ${gridRoom} on date ${iso}: check_in=${b.check_in}`);
+                                // ISO check for the start date
                                 if (bookingRoom === gridRoom && b.check_in === iso) {
                                     const chip = mkEl('div', `hc-booking ${b.booking_type || 'occupied'}`);
+
+                                    // Use the detail_id for popover context
+                                    chip.dataset.detailId = b.detail_id;
 
                                     const nights = parseInt(b.nights) || 1;
                                     chip.style.width = ((nights * 110) - 4) + 'px';
