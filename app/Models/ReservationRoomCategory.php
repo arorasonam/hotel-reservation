@@ -24,4 +24,10 @@ class ReservationRoomCategory extends Model
     {
         return $this->belongsTo(Reservation::class);
     }
+
+    public function mealPlan()
+    {
+        // Ensure 'meal_plan_id' matches your foreign key column
+        return $this->belongsTo(MealPlan::class, 'meal_plan_id');
+    }
 }
