@@ -46,10 +46,10 @@ Guest:
 {{ $order->guest->name ?? 'Walk-in Guest' }}
 </p>
 
-@if($order->table)
+@if($order->table_no)
 <p>
-Table:
-{{ $order->table->name }}
+Table No:
+{{ $order->table_no }}
 </p>
 @endif
 
@@ -104,6 +104,20 @@ Table:
 <p class="total">
 Grand Total: Rs. {{ $order->grand_total }}
 </p>
+
+<hr>
+
+<h4>Payments</h4>
+
+@forelse($order->payments as $payment)
+<p>
+{{ ucfirst($payment->payment_method) }}
+:
+Rs. {{ $payment->amount }}
+</p>
+@empty
+<p>No payments recorded.</p>
+@endforelse
 
 <hr>
 

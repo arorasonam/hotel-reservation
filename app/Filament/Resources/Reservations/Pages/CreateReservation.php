@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Reservations\Pages;
 
 use App\Filament\Resources\Reservations\ReservationResource;
+use App\Services\ReservationFolioService;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateReservation extends CreateRecord
@@ -35,6 +36,10 @@ class CreateReservation extends CreateRecord
         $reservation = $this->record;
         // Extract the raw form state
         $formState = $this->form->getRawState();
+        $folioService = app(ReservationFolioService::class);
+
+        $folioService->deleteEntry('reservation', $reservation->id, 'stay_charge');
+        $folioService->syncReservationRoomStayCharge($reservationRoom);
 
         foreach ($formState['roomCategories'] as $categoryData) {
             // 1. Create the Category Summary

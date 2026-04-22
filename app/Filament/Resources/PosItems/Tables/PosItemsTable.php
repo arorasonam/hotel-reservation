@@ -26,9 +26,10 @@ class PosItemsTable
                 TextColumn::make('price')
                     ->money()
                     ->sortable(),
-                TextColumn::make('tax.percentage')
+                TextColumn::make('category.tax.percentage')
                     ->label('Tax %')
                     ->numeric()
+                    ->placeholder('0')
                     ->sortable(),
                 IconColumn::make('status')
                     ->boolean(),

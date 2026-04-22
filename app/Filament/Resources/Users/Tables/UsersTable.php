@@ -17,21 +17,20 @@ class UsersTable
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-
                 TextColumn::make('email')
                     ->searchable()
                     ->sortable(),
-
                 TextColumn::make('phone')
                     ->searchable()
-                    ->placeholder('—'),
-
+                    ->placeholder('-'),
+                TextColumn::make('posOutlet.name')
+                    ->label('POS Outlet')
+                    ->placeholder('Any outlet'),
                 TextColumn::make('email_verified_at')
                     ->label('Verified')
                     ->dateTime()
                     ->sortable()
                     ->placeholder('Not verified'),
-
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

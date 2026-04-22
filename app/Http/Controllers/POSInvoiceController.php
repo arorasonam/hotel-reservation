@@ -11,6 +11,7 @@ class POSInvoiceController extends Controller
     {
         $order = PosOrder::with([
             'items.item',
+            'payments',
             'guest',
             'outlet',
         ])->findOrFail($id);
@@ -22,6 +23,7 @@ class POSInvoiceController extends Controller
     {
         $order = PosOrder::with([
             'items.item',
+            'payments',
             'guest',
             'outlet',
         ])->findOrFail($id);

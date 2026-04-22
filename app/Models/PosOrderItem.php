@@ -9,6 +9,7 @@ class PosOrderItem extends Model
 {
     protected $fillable = [
         'pos_order_id',
+        'pos_category_id',
         'pos_item_id',
         'quantity',
         'price',

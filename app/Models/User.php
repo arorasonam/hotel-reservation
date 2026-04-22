@@ -16,7 +16,8 @@ class User extends Authenticatable
         'email',
         'password',
         'phone',
-        'hotel_group_id'
+        'hotel_group_id',
+        'pos_outlet_id',
     ];
 
     protected $hidden = [
@@ -28,12 +29,17 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
+            'password' => 'hashed',
         ];
     }
 
     public function hotelGroup()
     {
         return $this->belongsTo(HotelGroup::class);
+    }
+
+    public function posOutlet()
+    {
+        return $this->belongsTo(PosOutlet::class, 'pos_outlet_id');
     }
 }
