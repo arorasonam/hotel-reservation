@@ -9,7 +9,8 @@ class PosCategory extends Model
     protected $fillable = [
         'pos_outlet_id',
         'name',
-        'status'
+        'tax_id',
+        'status',
     ];
 
     public function outlet()
@@ -20,5 +21,10 @@ class PosCategory extends Model
     public function items()
     {
         return $this->hasMany(PosItem::class);
+    }
+
+    public function tax()
+    {
+        return $this->belongsTo(Tax::class);
     }
 }

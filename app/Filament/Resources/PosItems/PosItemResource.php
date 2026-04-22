@@ -5,23 +5,18 @@ namespace App\Filament\Resources\PosItems;
 use App\Filament\Resources\PosItems\Pages\CreatePosItem;
 use App\Filament\Resources\PosItems\Pages\EditPosItem;
 use App\Filament\Resources\PosItems\Pages\ListPosItems;
-use App\Filament\Resources\PosItems\Schemas\PosItemForm;
 use App\Filament\Resources\PosItems\Tables\PosItemsTable;
+use App\Models\PosCategory;
 use App\Models\PosItem;
 use BackedEnum;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Filters\TernaryFilter;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Select;
 use UnitEnum;
-use App\Models\PosCategory;
 
 class PosItemResource extends Resource
 {
@@ -43,13 +38,12 @@ class PosItemResource extends Resource
                     ->relationship('outlet', 'name')
                     ->live()
                     ->required(),
-
                 Select::make('pos_category_id')
                     ->relationship('category', 'name')
-                     ->options(function ($livewire) {
+                    ->options(function ($livewire) {
                         $outletId = data_get($livewire->data, 'pos_outlet_id');
 
-                        if (!$outletId) {
+                        if (! $outletId) {
                             return [];
                         }
 
@@ -60,18 +54,11 @@ class PosItemResource extends Resource
                     ->disabled(fn ($livewire) => empty(data_get($livewire->data, 'pos_outlet_id')))
                     ->reactive()
                     ->required(),
-
                 TextInput::make('name')
                     ->required(),
-
                 TextInput::make('price')
                     ->numeric()
                     ->required(),
-
-                Select::make('tax_id')
-                    ->relationship('tax', 'name')
-                    ->searchable(),
-
                 Toggle::make('status')
                     ->default(true),
             ]);
@@ -84,9 +71,7 @@ class PosItemResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     public static function getPages(): array

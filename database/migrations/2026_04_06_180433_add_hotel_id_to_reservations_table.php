@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('reservations', function (Blueprint $table) {
-            // Use foreignUuid if your Hotel model uses UUIDs, 
+            // Use foreignUuid if your Hotel model uses UUIDs,
             // otherwise use foreignId for standard integers.
             $table->foreignUuid('hotel_id')
                 ->nullable()

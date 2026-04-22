@@ -56,16 +56,18 @@ class Reservation extends Model
 
                 // 2. Count how many reservations already exist for THIS hotel prefix
                 // This ensures the first one is always 1, the second is 2, etc.
-                $count = self::where('reservation_number', 'like', $hotelPrefix . '_%')->count();
+                $count = self::where('reservation_number', 'like', $hotelPrefix.'_%')->count();
                 $nextId = $count + 1;
 
                 // 3. Generate the formatted string: THE_0000001
-                $reservation->reservation_number = $hotelPrefix . '_' . str_pad($nextId, 7, '0', STR_PAD_LEFT);
+                $reservation->reservation_number = $hotelPrefix.'_'.str_pad($nextId, 7, '0', STR_PAD_LEFT);
             }
         });
 
         static::saved(function (Reservation $reservation): void {
-            app(ReservationFolioService::class)->syncReservationStayCharge($reservation);
+            if (! $reservation->reservationRooms()->exists()) {
+                app(ReservationFolioService::class)->syncReservationStayCharge($reservation);
+            }
         });
     }
 
@@ -156,5 +158,10 @@ class Reservation extends Model
     public function posOrders(): HasMany
     {
         return $this->hasMany(PosOrder::class);
+    }
+
+    public function isCheckedIn(): bool
+    {
+        return strtolower((string) $this->status) === 'checked_in';
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\PosOrder;
 use App\Models\Reservation;
+use App\Models\ReservationRoom;
 use App\Services\ReservationFolioService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -36,9 +37,11 @@ class ReservationFolioIntegrationTest extends TestCase
     public function test_it_tracks_pos_charge_tax_and_discount_in_the_folio(): void
     {
         $reservation = $this->createReservation();
+        $reservationRoom = $this->createReservationRoom($reservation);
         $order = PosOrder::query()->create([
             'hotel_id' => $reservation->hotel_id,
             'reservation_id' => $reservation->id,
+            'reservation_room_id' => $reservationRoom->id,
             'guest_id' => $reservation->guest_id,
             'room_id' => $this->createRoom($reservation->hotel_id, $reservation->room_type_id),
             'pos_outlet_id' => $this->createOutlet($reservation->hotel_id),
@@ -48,7 +51,7 @@ class ReservationFolioIntegrationTest extends TestCase
             'tax_amount' => 180,
             'discount_amount' => 50,
             'grand_total' => 1130,
-            'status' => 'confirmed',
+            'status' => 'checked_in',
             'created_by' => $this->createUser(),
         ]);
 
@@ -56,6 +59,7 @@ class ReservationFolioIntegrationTest extends TestCase
 
         $this->assertDatabaseHas('reservation_folios', [
             'reservation_id' => $reservation->id,
+            'reservation_room_id' => $reservationRoom->id,
             'source' => 'pos_order',
             'source_id' => $order->id,
             'source_key' => 'charge',
@@ -66,6 +70,7 @@ class ReservationFolioIntegrationTest extends TestCase
 
         $this->assertDatabaseHas('reservation_folios', [
             'reservation_id' => $reservation->id,
+            'reservation_room_id' => $reservationRoom->id,
             'source' => 'pos_order',
             'source_id' => $order->id,
             'source_key' => 'tax',
@@ -76,6 +81,7 @@ class ReservationFolioIntegrationTest extends TestCase
 
         $this->assertDatabaseHas('reservation_folios', [
             'reservation_id' => $reservation->id,
+            'reservation_room_id' => $reservationRoom->id,
             'source' => 'pos_order',
             'source_id' => $order->id,
             'source_key' => 'discount',
@@ -164,6 +170,24 @@ class ReservationFolioIntegrationTest extends TestCase
         ]);
 
         return $roomId;
+    }
+
+    private function createReservationRoom(Reservation $reservation): ReservationRoom
+    {
+        return ReservationRoom::query()->create([
+            'reservation_id' => $reservation->id,
+            'room_type_id' => $reservation->room_type_id,
+            'room_number' => $reservation->room_no,
+            'check_in' => $reservation->check_in,
+            'check_out' => $reservation->check_out,
+            'rate' => $reservation->rate,
+            'nights' => $reservation->nights,
+            'adults' => 2,
+            'children' => 0,
+            'infant' => 0,
+            'status' => 'checked_in',
+            'checked_in_at' => now(),
+        ]);
     }
 
     private function createOutlet(string $hotelId): int

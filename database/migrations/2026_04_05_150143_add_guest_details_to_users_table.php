@@ -43,7 +43,7 @@ return new class extends Migration
                 'nationality',
                 'purpose_of_visit',
                 'guest_preferences',
-                'role'
+                'role',
             ]);
         });
     }

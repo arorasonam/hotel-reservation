@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\PosOrder;
+use App\Models\PosPayment;
 use App\Models\Reservation;
 use App\Models\ReservationFolio;
+use App\Models\ReservationRoom;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -22,6 +24,7 @@ class ReservationFolioService
 
         $this->upsertEntry(
             reservation: $reservation,
+            reservationRoom: null,
             source: 'reservation',
             sourceId: $reservation->id,
             sourceKey: 'stay_charge',
@@ -38,17 +41,58 @@ class ReservationFolioService
         );
     }
 
+    public function syncReservationRoomStayCharge(ReservationRoom $reservationRoom): void
+    {
+        $reservation = $reservationRoom->reservation;
+
+        if (! $reservation) {
+            return;
+        }
+
+        $rate = (float) ($reservationRoom->rate ?: $reservation->rate);
+        $nights = (int) ($reservationRoom->nights ?: $reservation->nights ?: 1);
+        $amount = round($rate * $nights, 2);
+
+        if ($amount <= 0) {
+            $this->deleteEntry('reservation_room', $reservationRoom->id, 'stay_charge');
+
+            return;
+        }
+
+        $this->upsertEntry(
+            reservation: $reservation,
+            reservationRoom: $reservationRoom,
+            source: 'reservation_room',
+            sourceId: $reservationRoom->id,
+            sourceKey: 'stay_charge',
+            description: sprintf(
+                'Room %s charge for %s night(s) at %s',
+                $reservationRoom->room_number ?: 'Auto',
+                max(1, $nights),
+                number_format($rate, 2, '.', '')
+            ),
+            amount: $amount,
+            type: 'debit',
+            entryType: 'charge',
+            postedAt: $reservationRoom->check_in ? Carbon::parse($reservationRoom->check_in) : now(),
+            reference: $reservation->reservation_number,
+        );
+    }
+
     public function syncPosOrderCharges(PosOrder $order): void
     {
-        if (! $order->reservation_id || $order->status === 'cancelled') {
+        if (! $order->reservation_id || ! $order->reservation_room_id || $order->status === 'cancelled') {
             $this->deleteEntriesForSource('pos_order', $order->id);
 
             return;
         }
 
         $reservation = $order->reservation;
-        // added by GP $order->status === 'draft'
-        if (! $reservation || $order->status === 'draft') {
+        $reservationRoom = $order->reservationRoom;
+
+        if (! $reservation || ! $reservationRoom || ! $reservationRoom->isCheckedIn() || $order->status === 'draft') {
+            $this->deleteEntriesForSource('pos_order', $order->id);
+
             return;
         }
 
@@ -57,6 +101,7 @@ class ReservationFolioService
 
         $this->syncOrderComponent(
             reservation: $reservation,
+            reservationRoom: $reservationRoom,
             order: $order,
             sourceKey: 'charge',
             amount: (float) $order->subtotal,
@@ -69,6 +114,7 @@ class ReservationFolioService
 
         $this->syncOrderComponent(
             reservation: $reservation,
+            reservationRoom: $reservationRoom,
             order: $order,
             sourceKey: 'tax',
             amount: (float) $order->tax_amount,
@@ -81,6 +127,7 @@ class ReservationFolioService
 
         $this->syncOrderComponent(
             reservation: $reservation,
+            reservationRoom: $reservationRoom,
             order: $order,
             sourceKey: 'discount',
             amount: (float) $order->discount_amount,
@@ -100,6 +147,57 @@ class ReservationFolioService
             ->delete();
     }
 
+    public function syncPosPayment(PosPayment $payment): void
+    {
+        $order = $payment->order;
+
+        if (! $order) {
+            $this->deleteEntry('pos_payment', $payment->id, 'payment');
+
+            return;
+        }
+
+        if ($order->status === 'draft') {
+            $order->forceFill([
+                'status' => 'confirmed',
+            ])->save();
+
+            $order->refresh();
+        }
+
+        $this->syncPosOrderCharges($order);
+
+        if (! $order->reservation_id || ! $order->reservation_room_id || $payment->payment_method === 'room_posting') {
+            $this->deleteEntry('pos_payment', $payment->id, 'payment');
+
+            return;
+        }
+
+        $reservation = $order->reservation;
+        $reservationRoom = $order->reservationRoom;
+
+        if (! $reservation || ! $reservationRoom || ! $reservationRoom->isCheckedIn()) {
+            $this->deleteEntry('pos_payment', $payment->id, 'payment');
+
+            return;
+        }
+
+        $this->upsertEntry(
+            reservation: $reservation,
+            reservationRoom: $reservationRoom,
+            source: 'pos_payment',
+            sourceId: $payment->id,
+            sourceKey: 'payment',
+            description: 'POS payment - Order #'.$order->order_number,
+            amount: (float) $payment->amount,
+            type: 'credit',
+            entryType: 'payment',
+            postedAt: $payment->paid_at ?? $payment->created_at ?? now(),
+            reference: $payment->transaction_reference ?: $order->order_number,
+            notes: ucfirst((string) $payment->payment_method),
+        );
+    }
+
     public function deleteEntry(string $source, int|string $sourceId, string $sourceKey): void
     {
         ReservationFolio::query()
@@ -114,6 +212,29 @@ class ReservationFolioService
         /** @var Collection<int, ReservationFolio> $entries */
         $entries = $reservation->folios()->get();
 
+        return $this->summarizeEntries($entries);
+    }
+
+    public function summarizeReservationRoom(ReservationRoom $reservationRoom): array
+    {
+        /** @var Collection<int, ReservationFolio> $entries */
+        $entries = $reservationRoom->folios()->get();
+
+        return $this->summarizeEntries($entries);
+    }
+
+    public function summarizeMasterFolio(Reservation $reservation): array
+    {
+        /** @var Collection<int, ReservationFolio> $entries */
+        $entries = $reservation->folios()
+            ->whereNull('reservation_room_id')
+            ->get();
+
+        return $this->summarizeEntries($entries);
+    }
+
+    private function summarizeEntries(Collection $entries): array
+    {
         $debits = (float) $entries
             ->where('type', 'debit')
             ->sum('amount');
@@ -131,6 +252,7 @@ class ReservationFolioService
 
     private function syncOrderComponent(
         Reservation $reservation,
+        ReservationRoom $reservationRoom,
         PosOrder $order,
         string $sourceKey,
         float $amount,
@@ -148,6 +270,7 @@ class ReservationFolioService
 
         $this->upsertEntry(
             reservation: $reservation,
+            reservationRoom: $reservationRoom,
             source: 'pos_order',
             sourceId: $order->id,
             sourceKey: $sourceKey,
@@ -162,6 +285,7 @@ class ReservationFolioService
 
     private function upsertEntry(
         Reservation $reservation,
+        ?ReservationRoom $reservationRoom,
         string $source,
         int|string|null $sourceId,
         string $sourceKey,
@@ -181,6 +305,7 @@ class ReservationFolioService
             ],
             [
                 'reservation_id' => $reservation->getKey(),
+                'reservation_room_id' => $reservationRoom?->getKey(),
                 'description' => $description,
                 'reference' => $reference,
                 'notes' => $notes,

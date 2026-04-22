@@ -13,6 +13,7 @@ class CreatePosOrder extends CreateRecord
     protected function afterCreate(): void
     {
         $this->record->refreshTotals();
-        app(ReservationFolioService::class)->syncPosOrderCharges($this->record->fresh(['reservation']));
+        app(ReservationFolioService::class)->syncPosOrderCharges($this->record->fresh(['reservation', 'reservationRoom']));
     }
+
 }
