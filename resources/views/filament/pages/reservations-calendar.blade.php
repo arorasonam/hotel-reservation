@@ -1120,17 +1120,11 @@
                     </svg>
                     View Detail
                 </button>
-                <button class="pop-action primary-action" id="pop-checkin-btn" style="display: none; background: #22c55e; color: white;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3" />
-                    </svg>Check-in
-                </button>
+                <button id="pop-checkin-room" class="pop-action btn-green">Check-in Room</button>
+                <button id="pop-checkout-room" class="pop-action btn-red">Check-out Room</button>
 
-                <button class="pop-action primary-action" id="pop-checkout-btn" style="display: none; background: #ef4444; color: white;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M19.8 12H9" />
-                    </svg>Check-out
-                </button>
+                <button id="pop-group-checkin" class="pop-action btn-blue">Group Check-in</button>
+                <button id="pop-group-checkout" class="pop-action btn-dark">Group Check-out</button>
                 <button class="pop-action">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                         <rect x="2" y="5" width="20" height="14" rx="2" />
@@ -1560,20 +1554,43 @@
                 popover.style.top = top + 'px';
                 popover.dataset.bookingId = String(b.id || '');
 
-                const checkInBtn = document.getElementById('pop-checkin-btn');
-                const checkOutBtn = document.getElementById('pop-checkout-btn');
-
+                const checkInRoomBtn = document.getElementById('pop-checkin-room');
+                const checkOutRoomBtn = document.getElementById('pop-checkout-room');
+                const groupCheckInBtn = document.getElementById('pop-group-checkin');
+                const groupCheckOutBtn = document.getElementById('pop-group-checkout');
                 // Show Check-in if status is confirmed/tentative; show Check-out if already checked_in
+                // 1. Partial Logic (Specific to the room clicked)
                 if (b.status === 'checked_in') {
-                    checkInBtn.style.display = 'none';
-                    checkOutBtn.style.display = 'flex';
-                } else if (['confirmed', 'tentative'].includes(b.status)) {
-                    checkInBtn.style.display = 'flex';
-                    checkOutBtn.style.display = 'none';
+                    checkInRoomBtn.style.display = 'none';
+                    checkOutRoomBtn.style.display = 'flex';
                 } else {
-                    checkInBtn.style.display = 'none';
-                    checkOutBtn.style.display = 'none';
+                    checkInRoomBtn.style.display = 'flex';
+                    checkOutRoomBtn.style.display = 'none';
                 }
+
+                // 2. Group Logic (Affects all rooms in the ID)
+                // Only show Group Check-out if at least one room is checked in
+                if (b.status === 'checked_in') {
+                    groupCheckInBtn.style.display = 'none';
+                    groupCheckOutBtn.style.display = 'flex';
+                } else {
+                    groupCheckInBtn.style.display = 'flex';
+                    groupCheckOutBtn.style.display = 'none';
+                }
+
+                // Bind Group Checkout
+                groupCheckOutBtn.onclick = async () => {
+                    if (confirm("Check-out all rooms for this reservation?")) {
+                        const res = await lwCall('updateReservationStatus', b.id, 'checked_out');
+                        if (res.success) window.location.reload();
+                    }
+                };
+
+                // Bind Partial Checkout
+                checkOutRoomBtn.onclick = async () => {
+                    const res = await lwCall('updateRoomStatusInBooking', b.detail_id, 'checked_out');
+                    if (res.success) window.location.reload();
+                };
                 popover.dataset.bookingId = b.id;
                 // 1. Show Room and Meal Plan
                 const roomInfo = `Room ${b.room_no} · ${b.room_type || ''} (${b.meal_plan || 'EP'})`;
@@ -1593,8 +1610,8 @@
                 popover.classList.add('open');
             }
             // Event Listeners for the new actions
-            document.getElementById('pop-checkin-btn').addEventListener('click', () => handleStatusChange('checked_in'));
-            document.getElementById('pop-checkout-btn').addEventListener('click', () => handleStatusChange('checked_out'));
+            // document.getElementById('pop-checkin-btn').addEventListener('click', () => handleStatusChange('checked_in'));
+            // document.getElementById('pop-checkout-btn').addEventListener('click', () => handleStatusChange('checked_out'));
 
             document.getElementById('pop-close').addEventListener('click', () => popover.classList.remove('open'));
 

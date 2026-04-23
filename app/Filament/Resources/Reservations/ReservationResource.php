@@ -27,15 +27,9 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
-use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Tabs;
-use Filament\Schemas\Components\Tabs\Tab;
-use Filament\Infolists\Components\BadgeEntry;
-use Filament\Infolists\Components\ImageEntry;
 use Filament\Forms\Components\FileUpload;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -43,6 +37,8 @@ use Filament\Tables\Table;
 use Illuminate\Support\HtmlString;
 use UnitEnum;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Actions\Action;
 
 class ReservationResource extends Resource
 {
@@ -79,21 +75,24 @@ class ReservationResource extends Resource
                                 Section::make('Booking Details')
                                     ->compact()
                                     ->schema([
-                                        Select::make('hotel_id')
-                                            ->label('Hotel')
-                                            ->relationship('hotel', 'name')
-                                            // Use a non-closure default first to see if it sticks, 
-                                            // or keep the closure but ensure it returns a valid ID
-                                            ->default(fn() => \App\Models\Hotel::first()?->id)
-                                            ->required()
-                                            ->live()
-                                            ->preload() // Added preload to ensure the list is ready in the UI
-                                            ->native(false)
-                                            ->inlineLabel(),
+                                        Grid::make(2)->schema([
+                                            Select::make('hotel_id')
+                                                ->label('Hotel')
+                                                ->relationship('hotel', 'name')
+                                                // Use a non-closure default first to see if it sticks, 
+                                                // or keep the closure but ensure it returns a valid ID
+                                                ->default(fn() => \App\Models\Hotel::first()?->id)
+                                                ->required()
+                                                ->live()
+                                                ->preload() // Added preload to ensure the list is ready in the UI
+                                                ->inlineLabel()
+                                                ->native(false)
+                                                ->columnSpanFull()
+                                        ]),
                                         Grid::make(2)->schema([
                                             Select::make('booking_source_id')
                                                 ->label('Booking Source')
-                                                ->relationship('bookingSource', 'name', fn ($query, $get) => $query->where('hotel_id', $get('hotel_id')))
+                                                ->relationship('bookingSource', 'name', fn($query, $get) => $query->where('hotel_id', $get('hotel_id')))
                                                 ->searchable()
                                                 ->preload()
                                                 ->required()
@@ -102,6 +101,7 @@ class ReservationResource extends Resource
                                             Select::make('type')
                                                 ->options(['Individual' => 'Individual', 'Walk-in' => 'Walk-in'])
                                                 ->native(false)->inlineLabel(),
+
                                         ]),
 
                                         // TextInput::make('ref_id')->label('Booking Ref. Id*')->required()->inlineLabel(),
@@ -110,13 +110,7 @@ class ReservationResource extends Resource
                                             DatePicker::make('check_in')->label('Arrival Date')->required()->live()->inlineLabel(),
                                             DatePicker::make('check_out')->label('Departure Date')->required()->live()->inlineLabel(),
                                         ]),
-                                        Select::make('booking_type_id')
-                                            ->label('Booking Type')
-                                            ->relationship('bookingType', 'name', fn ($query, $get) => $query->where('hotel_id', $get('hotel_id')))
-                                            ->searchable()
-                                            ->preload()
-                                            ->native(false)
-                                            ->inlineLabel(),
+
 
                                         Grid::make(2)->schema([
                                             TimePicker::make('check_in_time')->label('Check-in Time')->default('14:00')->seconds(false)->inlineLabel(),
@@ -124,34 +118,45 @@ class ReservationResource extends Resource
                                         ]),
 
                                         Grid::make(2)->schema([
-                                            Select::make('source_market_id')
-                                                ->label('Source Market')
-                                                ->relationship('sourceMarket', 'name', fn ($query, $get) => $query->where('hotel_id', $get('hotel_id')))
+                                            Select::make('booking_type_id')
+                                                ->label('Booking Type')
+                                                ->relationship('bookingType', 'name', fn($query, $get) => $query->where('hotel_id', $get('hotel_id')))
                                                 ->searchable()
                                                 ->preload()
                                                 ->native(false)
                                                 ->inlineLabel(),
-                                            Select::make('breakfast')->label('Breakfast')->options(['1' => 'Yes', '0' => 'No'])->native(false)->inlineLabel(),
+                                            Select::make('source_market_id')
+                                                ->label('Source Market')
+                                                ->relationship('sourceMarket', 'name', fn($query, $get) => $query->where('hotel_id', $get('hotel_id')))
+                                                ->searchable()
+                                                ->preload()
+                                                ->native(false)
+                                                ->inlineLabel(),
+
                                         ]),
 
                                         // RESTORED: Special PMS Checkboxes
+
+                                        Grid::make(2)->schema([
+                                            Select::make('breakfast')->label('Breakfast')->options(['1' => 'Yes', '0' => 'No'])->native(false)->inlineLabel(),
+                                            Select::make('rate_plan')
+                                                ->label('Rate Plan')
+                                                ->options([
+                                                    'Best Available Rates' => 'Best Available Rates',
+                                                    'Corporate Rate' => 'Corporate Rate',
+                                                    'Seasonal Offer' => 'Seasonal Offer',
+                                                ])
+                                                ->default('Best Available Rates') // This only sets the UI, options() is required for storage
+                                                ->required()
+                                                ->native(false)
+                                                ->inlineLabel(),
+                                        ]),
                                         Grid::make(3)->schema([
                                             // Checkbox::make('same_plan_all_rooms')->label('Same Plan All Rooms')->default(true)->live(),
                                             Checkbox::make('pay_at_hotel')->label('Pay At Hotel'),
                                             Checkbox::make('is_igst_applied')->label('Is IGST Applied'),
                                         ]),
 
-                                        Select::make('rate_plan')
-                                            ->label('Rate Plan')
-                                            ->options([
-                                                'Best Available Rates' => 'Best Available Rates',
-                                                'Corporate Rate' => 'Corporate Rate',
-                                                'Seasonal Offer' => 'Seasonal Offer',
-                                            ])
-                                            ->default('Best Available Rates') // This only sets the UI, options() is required for storage
-                                            ->required()
-                                            ->native(false)
-                                            ->inlineLabel(),
                                     ]),
 
                                 // 2. FIXED: Category Section (Adds rows properly now)
@@ -312,7 +317,7 @@ class ReservationResource extends Resource
                                                                 Grid::make(6)->schema([
                                                                     Placeholder::make('room_label')
                                                                         ->label('')
-                                                                        ->content(fn ($get, $component) => new HtmlString('<strong>Room '.($get('../../rooms_count') > 1 ? '#' : '').'</strong>'))
+                                                                        ->content(fn($get, $component) => new HtmlString('<strong>Room ' . ($get('../../rooms_count') > 1 ? '#' : '') . '</strong>'))
                                                                         ->columnSpan(1),
 
                                                                     Select::make('adults')
@@ -366,7 +371,7 @@ class ReservationResource extends Resource
                                             ->addActionLabel('Add More Room Category')
                                             ->cloneable()
                                             ->collapsible()
-                                            ->itemLabel(fn (array $state): ?string => RoomType::find($state['room_type_id'] ?? null)?->name ?? 'New Category')
+                                            ->itemLabel(fn(array $state): ?string => RoomType::find($state['room_type_id'] ?? null)?->name ?? 'New Category')
                                             ->extraAttributes(['class' => 'bg-gray-50/50 p-2 rounded-lg border border-gray-100']),
                                     ]),
 
@@ -380,7 +385,7 @@ class ReservationResource extends Resource
                                                 Select::make('guest_id')
                                                     ->label('Find Existing Guest')
                                                     ->relationship('guest', 'first_name')
-                                                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name}")
+                                                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->first_name} {$record->last_name}")
                                                     ->searchable(['first_name', 'last_name', 'email'])
                                                     ->createOptionForm([
                                                         Grid::make(2)->schema([
@@ -449,18 +454,18 @@ class ReservationResource extends Resource
                                     ->compact()
                                     ->schema([
                                         TextInput::make('base_price')->label('Room Charges')->numeric()->prefix('₹')->live(onBlur: true)
-                                            ->afterStateUpdated(fn ($set, $get) => self::calculateTotal($set, $get)),
+                                            ->afterStateUpdated(fn($set, $get) => self::calculateTotal($set, $get)),
 
                                         TextInput::make('tax_amount')->label('Taxes')->numeric()->prefix('₹')->default(0)->live(onBlur: true)
-                                            ->afterStateUpdated(fn ($set, $get) => self::calculateTotal($set, $get)),
+                                            ->afterStateUpdated(fn($set, $get) => self::calculateTotal($set, $get)),
 
                                         Placeholder::make('total_display')
                                             ->label('')
-                                            ->content(fn ($get) => new HtmlString('
+                                            ->content(fn($get) => new HtmlString('
                                                 <div class="pt-4 border-t mt-4 text-right">
                                                     <div class="flex justify-between text-lg font-bold">
                                                         <span>Net Payable</span>
-                                                        <span class="text-primary-600">₹'.number_format((float) ($get('total_amount') ?? 0), 2).'</span>
+                                                        <span class="text-primary-600">₹' . number_format((float) ($get('total_amount') ?? 0), 2) . '</span>
                                                     </div>
                                                 </div>
                                             ')),
@@ -536,7 +541,7 @@ class ReservationResource extends Resource
                 Tables\Columns\TextColumn::make('roomType.name')->label('Room Type'),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         'confirmed' => 'success',
                         'tentative' => 'info',
                         'waitlist' => 'warning',
@@ -560,10 +565,85 @@ class ReservationResource extends Resource
                     ]),
             ])
             ->actions([
+                // ActionGroup::make([
+                // 1. Group Check-in Action
+                Action::make('partialCheckIn')
+                    ->label('Partial Check-in')
+                    ->icon('heroicon-o-user-plus')
+                    ->color('success')
+                    // Only show if there are rooms that AREN'T checked in yet
+                    ->visible(
+                        fn($record) => $record->roomCategories()
+                            ->whereHas('roomDetails', fn($q) => $q->where('status', '!=', 'checked_in'))
+                            ->exists()
+                    )
+                    ->form([
+                        CheckboxList::make('selected_room_details')
+                            ->label('Select Rooms to Check-in')
+                            ->options(function ($record) {
+                                // 1. Fetch only the Category IDs belonging to this Reservation
+                                $categoryIds = $record->roomCategories()->pluck('id');
+
+                                // 2. Query the Details table directly using those Category IDs
+                                // 3. Filter out 'checked_out' rooms as they shouldn't be checked in again
+                                return \App\Models\ReservationRoomDetail::whereIn('category_id', $categoryIds)
+                                    ->where('status', '!=', 'checked_out')
+                                    ->where('status', '!=', 'checked_in')
+                                    ->get()
+                                    ->mapWithKeys(fn($detail) => [
+                                        // Use the unique detail ID as the key to prevent selection conflicts
+                                        $detail->id => "Room " . ($detail->room_number ?? 'Auto') . " (" . ucfirst($detail->status ?? 'Confirmed') . ")"
+                                    ]);
+                            })
+                            ->required()
+                            ->columns(2),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $selectedIds = $data['selected_room_details'];
+
+                        foreach ($selectedIds as $detailId) {
+                            $detail = \App\Models\ReservationRoomDetail::find($detailId);
+
+                            if ($detail) {
+                                // 1. Update the individual room detail status
+                                $detail->update(['status' => 'checked_in']);
+
+                                // 2. Sync with the physical HotelRoom table
+                                if ($detail->room_number && $detail->room_number !== 'Auto') {
+                                    \App\Models\HotelRoom::where('room_number', $detail->room_number)
+                                        ->update(['status' => 'occupied']);
+                                }
+                            }
+                        }
+
+                        // 3. Logic to update parent reservation status if all rooms are now checked in
+                        self::syncParentStatus($record);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title(count($selectedIds) . " rooms successfully checked in")
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('groupCheckIn')
+                    ->label('Group Check-in')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->hidden(fn($record) => $record->status === 'checked_in')
+                    ->requiresConfirmation()
+                    ->action(fn($record) => self::processGroupStatusChange($record, 'checked_in')),
+
+                // 2. Group Check-out Action
+                Action::make('groupCheckOut')
+                    ->label('Group Check-out')
+                    ->icon('heroicon-o-arrow-left-on-rectangle')
+                    ->color('danger')
+                    ->visible(fn($record) => $record->status === 'checked_in')
+                    ->requiresConfirmation()
+                    ->action(fn($record) => self::processGroupStatusChange($record, 'checked_out')),
                 ViewAction::make()->icon('heroicon-m-eye'),
                 EditAction::make()->icon('heroicon-m-pencil-square'),
                 DeleteAction::make()->icon('heroicon-m-trash'),
-
+                // ])->label('Actions')->icon('heroicon-m-ellipsis-vertical'),
             ]);
     }
 
@@ -583,6 +663,53 @@ class ReservationResource extends Resource
             PosOrdersRelationManager::class,
             FoliosRelationManager::class,
         ];
+    }
+
+    protected static function processGroupStatusChange($reservation, string $status): void
+    {
+        // Update parent status
+        $reservation->update(['status' => $status]);
+
+        $physicalStatus = match ($status) {
+            'checked_in'  => 'occupied',
+            'checked_out' => 'dirty',
+            default       => 'vacant',
+        };
+
+        // Update all rooms in the tiered structure
+        foreach ($reservation->roomCategories as $category) {
+            foreach ($category->roomDetails as $detail) {
+                $detail->update(['status' => $status]);
+
+                if ($detail->room_number && $detail->room_number !== 'Auto') {
+                    \App\Models\HotelRoom::where('room_number', $detail->room_number)
+                        ->update(['status' => $physicalStatus]);
+                }
+            }
+        }
+
+        \Filament\Notifications\Notification::make()
+            ->title("Reservation " . str_replace('_', ' ', $status) . " successfully")
+            ->success()
+            ->send();
+    }
+
+    protected static function syncParentStatus($reservation): void
+    {
+        $details = \App\Models\ReservationRoomDetail::whereIn(
+            'category_id',
+            $reservation->roomCategories()->pluck('id')
+        )->get();
+
+        $total = $details->count();
+        $checkedIn = $details->where('status', 'checked_in')->count();
+        $checkedOut = $details->where('status', 'checked_out')->count();
+
+        if ($checkedOut === $total) {
+            $reservation->update(['status' => 'checked_out']);
+        } elseif ($checkedIn + $checkedOut === $total) {
+            $reservation->update(['status' => 'checked_in']);
+        }
     }
 
     // public static function infolist(Schema $schema): Schema

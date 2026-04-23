@@ -39,7 +39,7 @@ class CreateReservation extends CreateRecord
         $folioService = app(ReservationFolioService::class);
 
         $folioService->deleteEntry('reservation', $reservation->id, 'stay_charge');
-        $folioService->syncReservationRoomStayCharge($reservationRoom);
+        // $folioService->syncReservationRoomStayCharge($reservationRoom);
 
         foreach ($formState['roomCategories'] as $categoryData) {
             // 1. Create the Category Summary

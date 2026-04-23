@@ -319,34 +319,27 @@ class Reservations extends Page
     public function updateReservationStatus(int $id, string $status): array
     {
         $reservation = Reservation::with('roomCategories.roomDetails')->find($id);
+        if (!$reservation) return ['success' => false, 'message' => 'Not found'];
 
-        if (!$reservation) {
-            return ['success' => false, 'message' => 'Reservation not found'];
-        }
+        // Update parent
+        $reservation->update(['status' => $status]);
 
-        try {
-            // 1. Update the parent Reservation status (e.g., 'checked_in')
-            $reservation->update(['status' => $status]);
+        // Determine physical room state
+        $physicalStatus = match ($status) {
+            'checked_in'  => 'occupied',
+            'checked_out' => 'dirty', // Mark dirty for housekeeping
+            'cancelled'   => 'vacant',
+            default       => 'vacant',
+        };
 
-            // 2. Determine the physical room status
-            $physicalStatus = ($status === 'checked_in') ? 'occupied' : 'dirty';
-
-            // 3. Loop through all categories and their specific room details
-            foreach ($reservation->roomCategories as $category) {
-                foreach ($category->roomDetails as $detail) {
-                    // Update the status of the specific room detail
-                    $detail->update(['status' => $status]);
-
-                    // Sync the physical HotelRoom status
-                    if ($detail->room_number && $detail->room_number !== 'Auto') {
-                        \App\Models\HotelRoom::where('room_number', $detail->room_number)->update(['status' => $physicalStatus]);
-                    }
+        foreach ($reservation->roomCategories as $cat) {
+            foreach ($cat->roomDetails as $det) {
+                $det->update(['status' => $status]); // Update individual stay record
+                if ($det->room_number && $det->room_number !== 'Auto') {
+                    HotelRoom::where('room_number', $det->room_number)->update(['status' => $physicalStatus]);
                 }
             }
-
-            return ['success' => true];
-        } catch (\Throwable $e) {
-            return ['success' => false, 'message' => $e->getMessage()];
         }
+        return ['success' => true];
     }
 }
