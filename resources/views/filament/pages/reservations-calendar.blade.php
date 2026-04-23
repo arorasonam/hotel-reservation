@@ -1575,6 +1575,21 @@
                     checkOutBtn.style.display = 'none';
                 }
                 popover.dataset.bookingId = b.id;
+                // 1. Show Room and Meal Plan
+                const roomInfo = `Room ${b.room_no} · ${b.room_type || ''} (${b.meal_plan || 'EP'})`;
+                document.getElementById('pop-room').textContent = roomInfo;
+
+                // 2. Set Redirects for Edit and View
+                document.getElementById('pop-edit').onclick = () => {
+                    window.location.href = `/admin/reservations/${b.id}/edit`;
+                };
+
+                document.getElementById('pop-view-btn').onclick = () => {
+                    window.location.href = `/admin/reservations/${b.id}`;
+                };
+
+                popover.dataset.bookingId = b.id;
+                popover.dataset.detailId = b.detail_id;
                 popover.classList.add('open');
             }
             // Event Listeners for the new actions
