@@ -39,8 +39,30 @@ class CreateReservation extends CreateRecord
         $folioService = app(ReservationFolioService::class);
 
         $folioService->deleteEntry('reservation', $reservation->id, 'stay_charge');
-        $folioService->syncReservationRoomStayCharge($reservationRoom);
+        
+        // 3. Loop through categories (e.g., Arena DBL, Garden Dbl)
+        foreach ($this->temporary_room_data as $category) {
 
+            // 4. Loop through each specific room requirement in that category
+            foreach ($category['requirements'] as $roomDetail) {
+                $reservationRoom = $reservation->reservationRooms()->create([
+                     'room_type_id' => $category['room_type_id'],
+                    'meal_plan_id' => $category['meal_plan_id'],
+                    'room_number' => $roomDetail['room_number'] ?? 'Auto',
+                    'check_in' => $reservation->check_in,
+                    'check_out' => $reservation->check_out,
+                    'rate' => $reservation->rate ?? 0,
+                    'nights' => $reservation->nights ?? 1,
+                    'adults' => $roomDetail['adults'] ?? 2,
+                    'children' => $roomDetail['children'] ?? 0,
+                    'infant' => $roomDetail['infant'] ?? 0,
+                    'status' => 'confirmed', // Required for your calendar
+                ]);
+
+                $folioService->syncReservationRoomStayCharge($reservationRoom);
+            }
+        }
+       
         foreach ($formState['roomCategories'] as $categoryData) {
             // 1. Create the Category Summary
             $category = $reservation->roomCategories()->create([

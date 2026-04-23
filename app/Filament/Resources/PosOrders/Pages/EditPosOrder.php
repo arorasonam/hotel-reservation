@@ -21,6 +21,6 @@ class EditPosOrder extends EditRecord
     protected function afterSave(): void
     {
         $this->record->refreshTotals();
-        app(ReservationFolioService::class)->syncPosOrderCharges($this->record->fresh(['reservation', 'reservationRoom']));
+        app(ReservationFolioService::class)->syncPosOrderCharges($this->record->fresh(['reservation', 'reservationRoomDetail']));
     }
 }

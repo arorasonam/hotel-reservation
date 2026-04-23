@@ -103,12 +103,14 @@
         $roomSections = collect();
         $masterEntries = $folioScope === 'room'
             ? collect()
-            : $reservation->folios->whereNull('reservation_room_id');
+            : $reservation->folios
+                ->whereNull('reservation_room_id')
+                ->whereNull('reservation_room_detail_id');
 
         if ($folioScope === 'room') {
             $roomSections = collect([$selectedRoom]);
         } elseif ($folioScope === 'all') {
-            $roomSections = $reservation->reservationRooms;
+            $roomSections = $reservation->roomCategories->flatMap->roomDetails;
         }
     @endphp
 
@@ -146,9 +148,9 @@
             <div class="folio-heading">
                 <h3>Room {{ $room->room_number ?: 'Auto' }} Charges</h3>
                 <p>
-                    {{ $room->roomType->name ?? 'Room' }}
-                    @if($room->mealPlan)
-                        | {{ $room->mealPlan->name }}
+                    {{ $room->category?->roomType?->name ?? 'Room' }}
+                    @if($room->category?->mealPlan)
+                        | {{ $room->category->mealPlan->name }}
                     @endif
                     | Balance {{ number_format($debits - $credits, 2) }}
                 </p>

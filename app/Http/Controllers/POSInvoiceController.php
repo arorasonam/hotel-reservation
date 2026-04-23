@@ -14,6 +14,7 @@ class POSInvoiceController extends Controller
             'payments',
             'guest',
             'outlet',
+            'reservationRoomDetail',
         ])->findOrFail($id);
 
         return view('pos.invoice', compact('order'));
@@ -26,6 +27,7 @@ class POSInvoiceController extends Controller
             'payments',
             'guest',
             'outlet',
+            'reservationRoomDetail',
         ])->findOrFail($id);
 
         $pdf = Pdf::loadView('pos.invoice', compact('order'));

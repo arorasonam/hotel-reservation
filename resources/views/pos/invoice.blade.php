@@ -53,6 +53,13 @@ Table No:
 </p>
 @endif
 
+@if($order->reservationRoomDetail)
+<p>
+Room:
+{{ $order->reservationRoomDetail->room_number }}
+</p>
+@endif
+
 <hr>
 
 <table>
