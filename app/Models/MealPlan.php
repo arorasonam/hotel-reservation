@@ -12,10 +12,10 @@ class MealPlan extends Model
     protected $table = 'meal_plans';
     protected $guarded = [];
 
-    public function reservationRooms()
-    {
-        return $this->hasMany(ReservationRoom::class, 'meal_plan_id');
-    }
+    // public function reservationRooms()
+    // {
+    //     return $this->hasMany(ReservationRoom::class, 'meal_plan_id');
+    // }
 
     public function hotel(): BelongsTo
     {

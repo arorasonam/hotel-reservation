@@ -50,17 +50,29 @@ class Reservation extends Model
             if (! $reservation->reservation_number) {
                 // 1. Get the Hotel Prefix (e.g., THE)
                 $hotelPrefix = 'RES';
-                if ($reservation->hotel) {
-                    $hotelPrefix = strtoupper(substr($reservation->hotel->name, 0, 3));
+                if ($reservation->hotel_id) {
+                    $hotel = \App\Models\Hotel::find($reservation->hotel_id);
+                    $hotelPrefix = $hotel ? strtoupper(substr($hotel->name, 0, 3)) : 'RES';
                 }
 
-                // 2. Count how many reservations already exist for THIS hotel prefix
-                // This ensures the first one is always 1, the second is 2, etc.
-                $count = self::where('reservation_number', 'like', $hotelPrefix.'_%')->count();
-                $nextId = $count + 1;
+                /** * 2. Robust ID Generation
+                 * Instead of count(), we look for the highest existing number to avoid 
+                 * duplicate IDs if a previous reservation was deleted.
+                 */
+                $lastReservation = self::where('reservation_number', 'like', $hotelPrefix . '_%')
+                    ->orderBy('reservation_number', 'desc')
+                    ->first();
+
+                if ($lastReservation) {
+                    // Extract number from "THE_0000005" -> 5
+                    $lastNumber = (int) str_replace($hotelPrefix . '_', '', $lastReservation->reservation_number);
+                    $nextId = $lastNumber + 1;
+                } else {
+                    $nextId = 1;
+                }
 
                 // 3. Generate the formatted string: THE_0000001
-                $reservation->reservation_number = $hotelPrefix.'_'.str_pad($nextId, 7, '0', STR_PAD_LEFT);
+                $reservation->reservation_number = $hotelPrefix . '_' . str_pad($nextId, 7, '0', STR_PAD_LEFT);
             }
         });
 
