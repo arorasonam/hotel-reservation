@@ -52,9 +52,7 @@ class HotelResource extends Resource
             return $query;                                          // all hotels
         }
 
-        if ($user->hasRole('hotel_admin') && $user->hotel_group_id) {
-            return $query->where('hotel_group_id', $user->hotel_group_id); // own group only
-        }
+        return $query->where('hotel_group_id', $user->hotel_group_id);
 
         return $query->whereRaw('1 = 0');                          // no access
     }
