@@ -124,7 +124,7 @@ class PosOrderResource extends Resource
                     ->required(fn ($get): bool => $get('order_type') === 'room_charge')
                     ->getSearchResultsUsing(function (string $search) {
                         return ReservationRoomDetail::query()
-                            // ->where('status', 'checked_in')
+                            ->where('status', 'checked_in')
                             ->whereHas('category.reservation')
                             ->where(function ($query) use ($search) {
                                 $query->where('room_number', 'like', "%{$search}%")
@@ -180,7 +180,8 @@ class PosOrderResource extends Resource
 
                         $room = HotelRoom::query()
                             ->where('room_number', $detail->room_number)
-                            ->where('hotel_id', $reservation?->hotel_id)
+                            // ->where('status', $detail->checked_in)
+                            // ->where('hotel_id', $reservation?->hotel_id)
                             ->first();
 
                         if ($room) {
