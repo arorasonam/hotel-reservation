@@ -13,6 +13,7 @@ class PosItem extends Model
         'price',
         'tax_amount',
         'status',
+        'inventory_item_id'
     ];
 
     public function outlet()
@@ -23,5 +24,15 @@ class PosItem extends Model
     public function category()
     {
         return $this->belongsTo(PosCategory::class, 'pos_category_id');
+    }
+
+    public function recipeItems()
+    {
+        return $this->hasMany(PosItemInventory::class);
+    }
+
+    public function directInventory()
+    {
+        return $this->belongsTo(InventoryItem::class, 'inventory_item_id');
     }
 }

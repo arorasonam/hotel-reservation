@@ -80,9 +80,7 @@ class PosOrder extends Model
     protected static function booted(): void
     {
         static::creating(function (PosOrder $order): void {
-            if (! $order->created_by) {
-                $order->created_by = Auth::id();
-            }
+            $order->created_by = $order->created_by ?? Auth::id() ?? Null;
         });
 
         static::deleted(function (PosOrder $order): void {

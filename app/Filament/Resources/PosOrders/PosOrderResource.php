@@ -49,6 +49,9 @@ class PosOrderResource extends Resource
     {
         return $schema
             ->components([
+                Hidden::make('created_by')
+                    ->default(fn () => auth()->id())->dehydrated(true),
+
                 Hidden::make('hotel_id')->dehydrated(true),
                 TextInput::make('order_number')
                     ->default(fn () => 'POS-'.now()->format('YmdHisv'))
@@ -252,7 +255,9 @@ class PosOrderResource extends Resource
                             }),
                         Select::make('pos_item_id')
                             ->label('Item')
-                            // ->relationship('item', 'name')
+                            ->relationship('posItem', 'name', fn ($query) =>
+                                $query->with('directInventory')
+                            )
                             ->options(function ($livewire, callable $get): array {
                                 $outletId = data_get($livewire->data, 'pos_outlet_id');
                                 $categoryId = $get('pos_category_id');
@@ -271,6 +276,12 @@ class PosOrderResource extends Resource
                             })
                             ->reactive()
                             ->disabled(fn ($get, $livewire) => empty(data_get($livewire->data, 'pos_outlet_id')) || empty($get('pos_category_id')))
+                             ->getOptionLabelFromRecordUsing(function ($record) {
+                                    $record->name . ' (' . ($record->directInventory->current_stock ?? 0) . 
+                                    (($record->directInventory->current_stock ?? 0) <= 0 ? ' - Out of stock' : '') . ')';
+                            })
+                            ->searchable()
+                            ->preload()
                             ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                                 $item = PosItem::find($state);
 
@@ -294,6 +305,28 @@ class PosOrderResource extends Resource
                                 $set('subtotal', $subtotal);
                                 $set('tax_amount', $taxAmount);
                                 $set('total', $total);
+
+                                // check inventory //
+                                $posItem = \App\Models\PosItem::with('inventoryItem')->find($state);
+
+                                if (! $posItem || ! $posItem->inventory_item_id) {
+                                    return;
+                                }
+
+                                $stock = $posItem->directInventory->current_stock ?? 0;
+
+                                $set('available_stock', $stock);
+
+                                if ($stock <= 0) {
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Out of Stock')
+                                        ->body("{$posItem->name} is out of stock")
+                                        ->danger()
+                                        ->send();
+                                    
+                                    // reset selection
+                                    $set('pos_item_id', null);
+                                }
                             })
                             ->afterStateHydrated(function ($state, callable $set, callable $get) {
 
@@ -323,7 +356,16 @@ class PosOrderResource extends Resource
                                 $set('tax_amount', $taxAmount);
                                 $set('total', $total);
                             })
-                            ->required(),
+                            ->required()
+                            ->modifyQueryUsing(function ($query) {
+                                $query->whereHas('directInventory', function ($q) {
+                                    $q->where('current_stock', '>', 0);
+                                });
+                            }),
+                            TextInput::make('available_stock')
+                                ->disabled()
+                                ->label('Stock'),
+
                         TextInput::make('quantity')
                             ->numeric()
                             ->default(1)

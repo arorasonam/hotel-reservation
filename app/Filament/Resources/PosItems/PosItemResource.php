@@ -17,6 +17,8 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;
+use Filament\Forms\Components\Repeater;
+use App\Models\InventoryItem;
 
 class PosItemResource extends Resource
 {
@@ -61,6 +63,25 @@ class PosItemResource extends Resource
                     ->required(),
                 Toggle::make('status')
                     ->default(true),
+                
+                Select::make('inventory_item_id')
+                    ->label('Linked Inventory Item')
+                    ->relationship('directInventory', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->nullable()
+                // Repeater::make('recipeItems') // NOT inventoryItems
+                //     ->relationship()
+                //     ->schema([
+                //         Select::make('inventory_item_id')
+                //             ->relationship('inventoryItem', 'name')
+                //             ->required(),
+
+                //         TextInput::make('quantity')
+                //             ->numeric()
+                //             ->required(),
+                //     ])
+                //     ->columns(2)
             ]);
     }
 
