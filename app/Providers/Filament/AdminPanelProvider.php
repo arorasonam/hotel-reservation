@@ -93,7 +93,6 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->navigationGroups([
                 'POS',
-                'Inventory',
                 'Reservation Management',
                 'Filament Shield',
                 'Admin Management',

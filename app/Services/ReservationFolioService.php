@@ -166,7 +166,7 @@ class ReservationFolioService
 
             $order->refresh();
         }
-
+dd($order);
         $this->syncPosOrderCharges($order);
 
         if (! $order->reservation_id || ! $order->reservation_room_detail_id || $payment->payment_method === 'room_posting') {

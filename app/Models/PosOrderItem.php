@@ -40,10 +40,4 @@ class PosOrderItem extends Model
         //     $item->total = $item->quantity * $item->price;
         // });
     }
-
-
-    public function posItem()
-    {
-        return $this->belongsTo(PosItem::class);
-    }
 }
