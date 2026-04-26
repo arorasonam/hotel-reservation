@@ -24,6 +24,9 @@ use Filament\Pages\Auth\RequestPasswordReset;
 use Filament\Pages\Auth\ResetPassword;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\HtmlString;
+use Filament\Support\Facades\FilamentView;
+use App\Livewire\HotelSelector;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -50,6 +53,9 @@ class AdminPanelProvider extends PanelProvider
                         }
                     </style>
                 ')
+            )->renderHook(
+                PanelsRenderHook::GLOBAL_SEARCH_BEFORE,
+                 fn(): string => Blade::render('<livewire:hotel-selector />'),
             )
             ->brandLogo(asset('images/logo.png'))
             ->brandLogoHeight('80px')

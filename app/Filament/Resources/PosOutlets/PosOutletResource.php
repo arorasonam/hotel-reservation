@@ -21,7 +21,8 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;
 use UnitEnum;
-
+use App\Helpers\HotelContext;
+use Illuminate\Database\Eloquent\Builder;
 
 class PosOutletResource extends Resource
 {
@@ -34,6 +35,17 @@ class PosOutletResource extends Resource
     protected static ?string $recordTitleAttribute = 'POS Outlet';
 
     protected static ?int $navigationSort = 1;
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+
+        if (HotelContext::isFiltering()) {
+            $query->where('hotel_id', HotelContext::selectedId());
+        }
+
+        return $query;
+    }
 
     public static function form(Schema $schema): Schema
     {

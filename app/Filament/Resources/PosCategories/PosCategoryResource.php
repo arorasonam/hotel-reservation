@@ -17,6 +17,8 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use UnitEnum;
+use App\Helpers\HotelContext;
+use Illuminate\Database\Eloquent\Builder;
 
 class PosCategoryResource extends Resource
 {
@@ -30,12 +32,34 @@ class PosCategoryResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+
+        if (HotelContext::isFiltering()) {
+             $query->whereHas('outlet', function (Builder $q) {
+                $q->where('hotel_id', HotelContext::selectedId());
+            });
+        }
+
+        return $query;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
                 Select::make('pos_outlet_id')
-                    ->relationship('outlet', 'name')
+                    ->relationship( 'outlet',
+                    'name',
+                    modifyQueryUsing: function (Builder $query) {
+                        $hotelId = HotelContext::selectedId();
+
+                        if ($hotelId) {
+                            $query->where('hotel_id', $hotelId);
+                        }
+                    })
+                    ->preload()
                     ->required(),
                 TextInput::make('name')
                     ->required(),

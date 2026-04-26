@@ -9,6 +9,7 @@ use App\Models\Tax;
 use Filament\Actions\Imports\ImportColumn;
 use Filament\Actions\Imports\Importer;
 use Filament\Actions\Imports\Models\Import;
+use App\Helpers\HotelContext;
 
 class ItemImporter extends Importer
 {
@@ -17,7 +18,11 @@ class ItemImporter extends Importer
 
     public function mount(): void
     {
-        $this->hotelId = $this->data['hotel_id'] ?? null;
+         if (HotelContext::isFiltering()) {
+            $this->hotelId = HotelContext::selectedId();
+        }
+
+        // $this->hotelId = $this->data['hotel_id'] ?? null;
     }
 
     public static function getColumns(): array

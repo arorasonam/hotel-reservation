@@ -21,7 +21,7 @@ class FoliosRelationManager extends RelationManager
     protected static string $relationship = 'folios';
 
     protected static ?string $title = 'Folio';
-
+    
     public function table(Table $table): Table
     {
         return $table

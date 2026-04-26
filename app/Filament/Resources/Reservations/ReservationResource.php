@@ -40,6 +40,7 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
+use App\Helpers\HotelContext;
 
 class ReservationResource extends Resource
 {
@@ -56,6 +57,12 @@ class ReservationResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
+
+        // filter hotel ID //
+        // if (HotelContext::isFiltering()) {
+        //     $query->where('hotel_id', HotelContext::selectedId());
+        // }
+
         $user = auth()->user();
 
         // If SuperAdmin, show everything
@@ -65,6 +72,7 @@ class ReservationResource extends Resource
 
         // For HotelAdmin, filter by the hotel group they belong to
         // Assuming your User model has a 'hotel_group_id' or similar relationship
+      
         return $query->whereHas('hotel', function ($q) use ($user) {
             $q->where('hotel_group_id', $user->hotel_group_id);
         });

@@ -32,6 +32,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
+use App\Helpers\HotelContext;
 
 class PosOrderResource extends Resource
 {
@@ -44,6 +45,17 @@ class PosOrderResource extends Resource
     protected static ?string $recordTitleAttribute = 'POS Order';
 
     protected static ?int $navigationSort = 4;
+
+     public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+
+        if (HotelContext::isFiltering()) {
+            $query->where('hotel_id', HotelContext::selectedId());
+        }
+
+        return $query;
+    }
 
     public static function form(Schema $schema): Schema
     {
