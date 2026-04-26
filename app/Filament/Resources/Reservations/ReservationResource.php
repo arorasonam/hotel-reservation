@@ -39,6 +39,7 @@ use UnitEnum;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Actions\Action;
+use Illuminate\Database\Eloquent\Builder;
 
 class ReservationResource extends Resource
 {
@@ -51,6 +52,23 @@ class ReservationResource extends Resource
     protected static UnitEnum|string|null $navigationGroup = 'Reservation Management';
 
     protected static ?int $navigationSort = 1;
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+
+        // If SuperAdmin, show everything
+        if ($user->hasRole('super_admin')) {
+            return $query;
+        }
+
+        // For HotelAdmin, filter by the hotel group they belong to
+        // Assuming your User model has a 'hotel_group_id' or similar relationship
+        return $query->whereHas('hotel', function ($q) use ($user) {
+            $q->where('hotel_group_id', $user->hotel_group_id);
+        });
+    }
 
     /**
      * Requirement: Tabbed Interface using Schema
@@ -78,14 +96,30 @@ class ReservationResource extends Resource
                                         Grid::make(2)->schema([
                                             Select::make('hotel_id')
                                                 ->label('Hotel')
-                                                ->relationship('hotel', 'name')
-                                                // Use a non-closure default first to see if it sticks, 
-                                                // or keep the closure but ensure it returns a valid ID
-                                                ->default(fn() => \App\Models\Hotel::first()?->id)
+                                                ->relationship('hotel', 'name', function ($query) {
+                                                    $user = auth()->user();
+                                                    // SuperAdmin sees all hotels
+                                                    if ($user->hasRole('super_admin')) {
+                                                        return $query;
+                                                    }
+
+                                                    // HotelAdmin only sees hotels within their assigned group
+                                                    return $query->where('hotel_group_id', $user->hotel_group_id);
+                                                })
+                                                ->default(function () {
+                                                    $user = auth()->user();
+                                                    $query = \App\Models\Hotel::query();
+
+                                                    // Apply role-based filter to the default search as well
+                                                    if (!$user->hasRole('super_admin')) {
+                                                        $query->where('hotel_group_id', $user->hotel_group_id);
+                                                    }
+
+                                                    return $query->first()?->id;
+                                                })
                                                 ->required()
                                                 ->live()
-                                                ->preload() // Added preload to ensure the list is ready in the UI
-                                                ->inlineLabel()
+                                                ->searchable()
                                                 ->native(false)
                                                 ->columnSpanFull()
                                         ]),
@@ -510,6 +544,14 @@ class ReservationResource extends Resource
                     ->sortable()
                     ->copyable() // Optional: allows staff to click to copy
                     ->weight('bold'),
+                Tables\Columns\TextColumn::make('hotel.name')
+                    ->label('Hotel')
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold')
+                    ->color('primary')
+                    ->url(fn($record): string => route('filament.admin.resources.hotels.view', ['record' => $record->hotel_id]))
+                    ->openUrlInNewTab(),
                 Tables\Columns\TextColumn::make('primary_guest_name')
                     ->label('Guest Name')
                     ->state(function ($record) {
@@ -538,7 +580,7 @@ class ReservationResource extends Resource
                     }),
                 Tables\Columns\TextColumn::make('check_in')->label('Arrival Date')->date()->sortable(),
                 Tables\Columns\TextColumn::make('check_out')->label('Departure Date')->date()->sortable(),
-                Tables\Columns\TextColumn::make('roomType.name')->label('Room Type'),
+                // Tables\Columns\TextColumn::make('roomType.name')->label('Room Type'),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
