@@ -5,11 +5,13 @@ namespace App\Filament\Resources\PosOrders;
 use App\Filament\Resources\PosOrders\Pages\CreatePosOrder;
 use App\Filament\Resources\PosOrders\Pages\EditPosOrder;
 use App\Filament\Resources\PosOrders\Pages\ListPosOrders;
+use App\Helpers\HotelContext;
 use App\Models\HotelRoom;
 use App\Models\PosCategory;
 use App\Models\PosItem;
 use App\Models\PosOrder;
 use App\Models\PosOutlet;
+use App\Models\Reservation;
 use App\Models\ReservationRoomDetail;
 use App\Models\Tax;
 use App\Services\ReservationFolioService;
@@ -32,7 +34,10 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
-use App\Helpers\HotelContext;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Grid;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\RepeatableEntry;
 
 class PosOrderResource extends Resource
 {
@@ -46,14 +51,20 @@ class PosOrderResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
-     public static function getEloquentQuery(): Builder
+    public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
 
         if (HotelContext::isFiltering()) {
             $query->where('hotel_id', HotelContext::selectedId());
         }
-    
+
+        $user = auth()->user();
+        // If bartender, show related outlet data //
+        if ($user->hasRole('bartender')) {
+            $query->where('pos_outlet_id', $user->pos_outlet_id);
+        }
+
         return $query;
     }
 
@@ -132,6 +143,7 @@ class PosOrderResource extends Resource
                 Select::make('reservation_room_detail_id')
                     ->label('Room Posting')
                     ->searchable()
+                    ->live()
                     ->visible(fn ($get): bool => $get('order_type') === 'room_charge')
                     ->required(fn ($get): bool => $get('order_type') === 'room_charge')
                     ->getSearchResultsUsing(function (string $search) {
@@ -175,34 +187,12 @@ class PosOrderResource extends Resource
                         );
                     })
                     ->afterStateUpdated(function ($state, callable $set): void {
-                        $detail = ReservationRoomDetail::with('category.reservation')
-                            ->find($state);
+                        $postingData = self::getRoomPostingData($state);
 
-                        if (! $detail) {
-                            $set('reservation_id', null);
-                            $set('reservation_room_id', null);
-                            $set('room_id', null);
-                            $set('guest_id', null);
-
-                            return;
-                        }
-
-                        $category = $detail->category;
-                        $reservation = $category?->reservation;
-
-                        $room = HotelRoom::query()
-                            ->where('room_number', $detail->room_number)
-                            // ->where('status', $detail->checked_in)
-                            // ->where('hotel_id', $reservation?->hotel_id)
-                            ->first();
-
-                        if ($room) {
-                            $set('room_id', $room->id);
-                        }
-
-                        $set('reservation_id', $reservation?->id);
-                        $set('reservation_room_id', null);
-                        $set('guest_id', $reservation?->guest_id);
+                        $set('reservation_id', $postingData['reservation_id']);
+                        $set('reservation_room_id', $postingData['reservation_room_id']);
+                        $set('room_id', $postingData['room_id']);
+                        $set('guest_id', $postingData['guest_id']);
                     }),
 
                 Select::make('room_id')
@@ -211,6 +201,7 @@ class PosOrderResource extends Resource
                     ->dehydrated(),
                 Select::make('guest_id')
                     ->relationship('guest', 'first_name')
+                    ->getOptionLabelFromRecordUsing(fn ($record) => trim("{$record->first_name} {$record->last_name}"))
                     ->disabled(fn ($get) => $get('order_type') === 'room_charge')
                     ->searchable()
                     ->dehydrated(),
@@ -507,6 +498,11 @@ class PosOrderResource extends Resource
 
     protected static function mutateFormDataBeforeCreate(array $data): array
     {
+        return self::prepareCreateData($data);
+    }
+
+    public static function prepareCreateData(array $data): array
+    {
         $subtotal = 0;
         $taxAmount = 0;
 
@@ -531,6 +527,10 @@ class PosOrderResource extends Resource
             $data['reservation_id'] = null;
             $data['reservation_room_id'] = null;
             $data['reservation_room_detail_id'] = null;
+            $data['guest_id'] = null;
+            $data['room_id'] = null;
+        } else {
+            $data = array_merge($data, self::getRoomPostingData($data['reservation_room_detail_id'] ?? null));
         }
 
         if ($grandTotal <= 0) {
@@ -539,5 +539,149 @@ class PosOrderResource extends Resource
         }
 
         return $data;
+    }
+
+    /**
+     * @return array{reservation_id: int|null, reservation_room_id: int|null, room_id: string|null, guest_id: int|null}
+     */
+    private static function getRoomPostingData(mixed $reservationRoomDetailId): array
+    {
+        $emptyPostingData = [
+            'reservation_id' => null,
+            'reservation_room_id' => null,
+            'room_id' => null,
+            'guest_id' => null,
+        ];
+
+        if (! $reservationRoomDetailId) {
+            return $emptyPostingData;
+        }
+
+        $detail = ReservationRoomDetail::with('category.reservation.reservationGuests')
+            ->find($reservationRoomDetailId);
+
+        if (! $detail) {
+            return $emptyPostingData;
+        }
+
+        $reservation = $detail->category?->reservation;
+        $roomId = HotelRoom::query()
+            ->where('room_number', $detail->room_number)
+            ->when($reservation?->hotel_id, fn (Builder $query, string $hotelId): Builder => $query->where('hotel_id', $hotelId))
+            ->value('id');
+
+        return [
+            'reservation_id' => $reservation?->id,
+            'reservation_room_id' => null,
+            'room_id' => $roomId,
+            'guest_id' => self::getReservationGuestId($reservation),
+        ];
+    }
+
+    private static function getReservationGuestId(?Reservation $reservation): ?int
+    {
+        if (! $reservation) {
+            return null;
+        }
+
+        $reservationGuest = $reservation->reservationGuests
+            ->whereNotNull('guest_id')
+            ->sortByDesc('is_primary')
+            ->first();
+
+        return $reservationGuest?->guest_id ?? $reservation->guest_id;
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make('Order Details')
+                    ->columnSpanFull()
+                    ->schema([
+                        Grid::make(3)->schema([
+                            TextEntry::make('order_number')
+                                ->label('Order No'),
+
+                            TextEntry::make('outlet.name')
+                                ->label('Outlet'),
+
+                            TextEntry::make('order_type')
+                                ->badge()
+                                ->color(fn ($state) => match ($state) {
+                                    'room_charge' => 'info',
+                                    'walk_in' => 'success',
+                                    'takeaway' => 'warning',
+                                }),
+
+                            TextEntry::make('table_no')
+                                ->label('Table No')
+                                ->visible(fn ($record) => $record->order_type !== 'takeaway'),
+
+                            TextEntry::make('room.room_number')
+                                ->label('Room'),
+
+                            TextEntry::make('guest.name')
+                                ->label('Guest'),
+                        ]),
+                    ]),
+
+                Section::make('Financial')
+                    ->columnSpanFull()
+                    ->schema([
+                        Grid::make(4)->schema([
+                            TextEntry::make('discount_amount')
+                                ->money('INR'),
+
+                            TextEntry::make('status')
+                                ->badge()
+                                ->color(fn ($state) => match ($state) {
+                                    'draft' => 'gray',
+                                    'confirmed' => 'info',
+                                    'paid' => 'success',
+                                    'cancelled' => 'danger',
+                                }),
+
+                            TextEntry::make('created_at')
+                                ->dateTime(),
+
+                            TextEntry::make('updated_at')
+                                ->dateTime(),
+                        ]),
+                    ]),
+
+                Section::make('Order Items')
+                    ->columnSpanFull()
+                    ->schema([
+                        RepeatableEntry::make('items')
+                            ->schema([
+                                Grid::make(8)->schema([
+                                    TextEntry::make('category.name')
+                                        ->label('Category'),
+
+                                    TextEntry::make('item.name')
+                                        ->label('Item'),
+
+                                    TextEntry::make('quantity'),
+
+                                    TextEntry::make('price')
+                                        ->money('INR'),
+
+                                    TextEntry::make('tax_percentage')
+                                        ->suffix('%'),
+
+                                    TextEntry::make('subtotal')
+                                        ->money('INR'),
+
+                                    TextEntry::make('tax_amount')
+                                        ->money('INR'),
+
+                                    TextEntry::make('total')
+                                        ->money('INR')
+                                        ->weight('bold'),
+                                ]),
+                            ]),
+                    ]),
+            ]);
     }
 }

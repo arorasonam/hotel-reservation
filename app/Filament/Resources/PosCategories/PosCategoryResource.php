@@ -5,7 +5,9 @@ namespace App\Filament\Resources\PosCategories;
 use App\Filament\Resources\PosCategories\Pages\CreatePosCategory;
 use App\Filament\Resources\PosCategories\Pages\EditPosCategory;
 use App\Filament\Resources\PosCategories\Pages\ListPosCategories;
+use App\Helpers\HotelContext;
 use App\Models\PosCategory;
+use App\Models\PosOutlet;
 use BackedEnum;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -16,9 +18,8 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use UnitEnum;
-use App\Helpers\HotelContext;
 use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 class PosCategoryResource extends Resource
 {
@@ -37,9 +38,15 @@ class PosCategoryResource extends Resource
         $query = parent::getEloquentQuery();
 
         if (HotelContext::isFiltering()) {
-             $query->whereHas('outlet', function (Builder $q) {
+            $query->whereHas('outlet', function (Builder $q) {
                 $q->where('hotel_id', HotelContext::selectedId());
             });
+        }
+
+        $user = auth()->user();
+        // If bartender, show related outlet data //
+        if ($user->hasRole('bartender')) {
+            $query->where('pos_outlet_id', $user->pos_outlet_id);
         }
 
         return $query;
@@ -50,17 +57,22 @@ class PosCategoryResource extends Resource
         return $schema
             ->components([
                 Select::make('pos_outlet_id')
-                    ->relationship( 'outlet',
-                    'name',
-                    modifyQueryUsing: function (Builder $query) {
-                        $hotelId = HotelContext::selectedId();
-
-                        if ($hotelId) {
-                            $query->where('hotel_id', $hotelId);
-                        }
-                    })
+                    ->label('Outlet')
+                    ->relationship(
+                        'outlet',
+                        'name',
+                        modifyQueryUsing: fn (Builder $query) => $query->whereIn('id', self::getFilteredOutletQuery()->pluck('id'))
+                    )
+                    ->default(fn () => ($ids = self::getFilteredOutletQuery()->pluck('id'))->count() === 1
+                            ? $ids->first()
+                            : null
+                    )
+                    ->disabled(fn () => self::getFilteredOutletQuery()->count() === 1
+                    )
+                    ->searchable()
                     ->preload()
-                    ->required(),
+                    ->required()
+                    ->dehydrated(true),
                 TextInput::make('name')
                     ->required(),
                 Select::make('tax_id')
@@ -71,6 +83,23 @@ class PosCategoryResource extends Resource
                 Toggle::make('status')
                     ->default(true),
             ]);
+    }
+
+    protected static function getFilteredOutletQuery(): Builder
+    {
+        $query = PosOutlet::query();
+
+        if ($hotelId = HotelContext::selectedId()) {
+            $query->where('hotel_id', $hotelId);
+        }
+
+        $user = auth()->user();
+
+        if ($user->hasRole('bartender')) {
+            $query->where('id', $user->pos_outlet_id);
+        }
+
+        return $query;
     }
 
     public static function table(Table $table): Table

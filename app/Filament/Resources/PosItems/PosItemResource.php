@@ -6,8 +6,10 @@ use App\Filament\Resources\PosItems\Pages\CreatePosItem;
 use App\Filament\Resources\PosItems\Pages\EditPosItem;
 use App\Filament\Resources\PosItems\Pages\ListPosItems;
 use App\Filament\Resources\PosItems\Tables\PosItemsTable;
+use App\Helpers\HotelContext;
 use App\Models\PosCategory;
 use App\Models\PosItem;
+use App\Models\PosOutlet;
 use BackedEnum;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -16,9 +18,8 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use UnitEnum;
-use App\Helpers\HotelContext;
 use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 class PosItemResource extends Resource
 {
@@ -37,9 +38,15 @@ class PosItemResource extends Resource
         $query = parent::getEloquentQuery();
 
         if (HotelContext::isFiltering()) {
-               $query->whereHas('category.outlet', function (Builder $q) {
+            $query->whereHas('category.outlet', function (Builder $q) {
                 $q->where('pos_outlets.hotel_id', HotelContext::selectedId());
             });
+        }
+
+        $user = auth()->user();
+        // If bartender, show related outlet data //
+        if ($user->hasRole('bartender')) {
+            $query->where('pos_outlet_id', $user->pos_outlet_id);
         }
 
         return $query;
@@ -50,15 +57,24 @@ class PosItemResource extends Resource
         return $schema
             ->components([
                 Select::make('pos_outlet_id')
-                   ->relationship( 'outlet',
-                    'name',
-                    modifyQueryUsing: function (Builder $query) {
-                        $hotelId = HotelContext::selectedId();
+                    ->relationship('outlet',
+                        'name',
+                        modifyQueryUsing: function (Builder $query) {
+                            $hotelId = HotelContext::selectedId();
 
-                        if ($hotelId) {
-                            $query->where('hotel_id', $hotelId);
-                        }
-                    })
+                            if ($hotelId) {
+                                $query->where('hotel_id', $hotelId);
+                            }
+
+                            $query->whereIn('id', self::getFilteredOutletQuery()->pluck('id'));
+                        })
+                    ->default(fn () => ($ids = self::getFilteredOutletQuery()->pluck('id'))->count() === 1
+                               ? $ids->first()
+                               : null
+                    )
+                    ->disabled(fn () => self::getFilteredOutletQuery()->count() === 1
+                    )
+                    ->dehydrated(true)
                     ->preload()
                     ->live()
                     ->required(),
@@ -86,6 +102,19 @@ class PosItemResource extends Resource
                 Toggle::make('status')
                     ->default(true),
             ]);
+    }
+
+    protected static function getFilteredOutletQuery(): Builder
+    {
+        $query = PosOutlet::query();
+
+        $user = auth()->user();
+
+        if ($user->hasRole('bartender')) {
+            $query->where('id', $user->pos_outlet_id);
+        }
+
+        return $query;
     }
 
     public static function table(Table $table): Table

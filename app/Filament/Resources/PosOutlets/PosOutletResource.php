@@ -5,24 +5,22 @@ namespace App\Filament\Resources\PosOutlets;
 use App\Filament\Resources\PosOutlets\Pages\CreatePosOutlet;
 use App\Filament\Resources\PosOutlets\Pages\EditPosOutlet;
 use App\Filament\Resources\PosOutlets\Pages\ListPosOutlets;
-use App\Filament\Resources\PosOutlets\Schemas\PosOutletForm;
-use App\Filament\Resources\PosOutlets\Tables\PosOutletsTable;
+use App\Helpers\HotelContext;
 use App\Models\PosOutlet;
 use BackedEnum;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\Select;
-use UnitEnum;
-use App\Helpers\HotelContext;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 class PosOutletResource extends Resource
 {
@@ -44,6 +42,12 @@ class PosOutletResource extends Resource
             $query->where('hotel_id', HotelContext::selectedId());
         }
 
+        $user = auth()->user();
+        // If bartender, show related outlet data //
+        if ($user->hasRole('bartender')) {
+            $query->where('id', $user->pos_outlet_id);
+        }
+
         return $query;
     }
 
@@ -52,15 +56,15 @@ class PosOutletResource extends Resource
         return $schema
             ->components([
                 Select::make('hotel_id')
-                ->label('Hotel')
-                ->relationship(
-                    name: 'hotel',
-                    titleAttribute: 'name',
-                    modifyQueryUsing: fn ($query) => $query->orderBy('name')
-                )
-                ->searchable()
-                ->preload()
-                ->required(),
+                    ->label('Hotel')
+                    ->relationship(
+                        name: 'hotel',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: fn ($query) => $query->orderBy('name')
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->required(),
 
                 TextInput::make('name')
                     ->required(),
@@ -72,7 +76,7 @@ class PosOutletResource extends Resource
                 Textarea::make('description'),
 
                 Toggle::make('status')
-                    ->default(true)
+                    ->default(true),
 
             ]);
     }
@@ -81,13 +85,13 @@ class PosOutletResource extends Resource
     {
         return $table
             ->columns([
-                
+
                 TextColumn::make('name')->searchable(),
-                
+
                 TextColumn::make('hotel.name')
-                ->label('Hotel')
-                ->searchable()
-                ->sortable(),
+                    ->label('Hotel')
+                    ->searchable()
+                    ->sortable(),
 
                 TextColumn::make('code'),
 
@@ -99,7 +103,7 @@ class PosOutletResource extends Resource
 
             ])
             ->filters([
-                TernaryFilter::make('status')
+                TernaryFilter::make('status'),
             ]);
     }
 

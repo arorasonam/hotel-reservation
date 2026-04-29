@@ -10,6 +10,11 @@ class CreatePosOrder extends CreateRecord
 {
     protected static string $resource = PosOrderResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        return PosOrderResource::prepareCreateData($data);
+    }
+
     protected function afterCreate(): void
     {
         $this->record->refreshTotals();
