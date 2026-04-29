@@ -21,6 +21,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Table;
 use Malzariey\FilamentDaterangepickerFilter\Fields\DateRangePicker;
 use Malzariey\FilamentDaterangepickerFilter\Filters\DateRangeFilter;
+use App\Filament\Pages\HotelView;
+use Filament\Actions\Action;
+use App\Models\Hotel;
 
 class HotelsTable
 {
@@ -51,8 +54,26 @@ class HotelsTable
                 DateRangeFilter::make('updated_at'),
             ])
             ->recordActions([
-                ViewAction::make()->iconButton()->tooltip('View')->color('info'),
-                EditAction::make()->iconButton()->tooltip('Edit')->color('primary'),
+                // Existing View and Edit actions
+                ViewAction::make()
+                    ->iconButton()
+                    ->tooltip('View Record')
+                    ->color('info'),
+
+                EditAction::make()
+                    ->iconButton()
+                    ->tooltip('Edit Record')
+                    ->color('primary'),
+
+                // Updated Custom OTA View Action
+                Action::make('view_details')
+                    ->label('View OTA Page')
+                    ->icon('heroicon-o-presentation-chart-line')
+                    ->iconButton()
+                    ->tooltip('View OTA Style Property Page')
+                    ->color('success')
+                    // Ensure the array key matches the {record} placeholder in the slug
+                    ->url(fn(Hotel $record): string => HotelView::getUrl(['record' => $record->id])),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([]),

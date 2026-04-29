@@ -197,8 +197,24 @@ class ReservationResource extends Resource
                                         ]),
                                         Grid::make(3)->schema([
                                             // Checkbox::make('same_plan_all_rooms')->label('Same Plan All Rooms')->default(true)->live(),
+
                                             Checkbox::make('pay_at_hotel')->label('Pay At Hotel'),
                                             Checkbox::make('is_igst_applied')->label('Is IGST Applied'),
+
+
+                                        ]),
+                                        Grid::make(2)->schema([
+                                            Select::make('status')
+                                                ->label('Status')
+                                                ->options(['confirmed' => 'Confirmed', 'tentative' => 'Tentative'])
+                                                ->native(false)
+                                                ->inlineLabel()
+                                                ->required(),
+                                        ]),
+                                        Grid::make(1)->schema([
+                                            // Checkbox::make('same_plan_all_rooms')->label('Same Plan All Rooms')->default(true)->live(),
+
+                                            Textarea::make('special_requests')->rows(6),
                                         ]),
 
                                     ]),
@@ -503,7 +519,6 @@ class ReservationResource extends Resource
                             ->columnSpan(4)
                             ->schema([
                                 Section::make('Bill Summary')
-                                    ->compact()
                                     ->schema([
                                         TextInput::make('base_price')->label('Room Charges')->numeric()->prefix('₹')->live(onBlur: true)
                                             ->afterStateUpdated(fn ($set, $get) => self::calculateTotal($set, $get)),
@@ -521,15 +536,15 @@ class ReservationResource extends Resource
                                                     </div>
                                                 </div>
                                             ')),
+                                        Placeholder::make('bill_details')
+                                            ->label('')
+                                            ->content(fn($record) => view('filament.components.bill-summary-display', [
+                                                'record' => $record,
+                                            ]))
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->columnSpan(['lg' => 1]) // Sidebars like your screenshot
 
-                                        Select::make('status')
-                                            ->options(['confirmed' => 'Confirmed', 'tentative' => 'Tentative'])
-                                            ->required(),
-                                    ]),
-
-                                Section::make('Internal Notes')->compact()->schema([
-                                    Textarea::make('special_requests')->rows(6),
-                                ]),
                             ]),
                     ]),
             ]);
