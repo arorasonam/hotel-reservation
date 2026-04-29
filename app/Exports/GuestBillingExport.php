@@ -39,8 +39,8 @@ class GuestBillingExport implements FromCollection, WithHeadings, WithTitle, Sho
             SUM(pos_orders.discount_amount) as discount,
             SUM(pos_orders.grand_total) as grand_total
         ')
-        ->groupBy('reservation_guests.id', 'reservation_guests.name', 'reservations.reservation_number', 'pos_orders.room_id', 'pos_outlets.name')
-        ->orderBy('reservation_guests.name');
+        ->groupBy('reservation_guests.id', 'reservation_guests.first_name', 'reservations.reservation_number', 'pos_orders.room_id', 'pos_outlets.name')
+        ->orderBy('reservation_guests.first_name');
 
         if ($this->outletId) {
             $query->where('pos_orders.pos_outlet_id', $this->outletId);

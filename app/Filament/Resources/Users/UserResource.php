@@ -23,16 +23,21 @@ class UserResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
     protected static ?string $navigationLabel = 'Users';
+
     protected static UnitEnum|string|null $navigationGroup = 'User Management';
+
     protected static ?int $navigationSort = 1;
+
     protected static ?string $recordTitleAttribute = 'name';
+
     protected static ?string $modelLabel = 'User';
+
     protected static ?string $pluralModelLabel = 'Users';
 
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->role('user', 'web');
+            ->role('user');
     }
 
     public static function form(Schema $schema): Schema
@@ -53,9 +58,9 @@ class UserResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => ListUsers::route('/'),
+            'index' => ListUsers::route('/'),
             'create' => CreateUser::route('/create'),
-            'edit'   => EditUser::route('/{record}/edit'),
+            'edit' => EditUser::route('/{record}/edit'),
         ];
     }
 }

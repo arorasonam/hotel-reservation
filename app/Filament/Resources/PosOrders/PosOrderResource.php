@@ -53,7 +53,7 @@ class PosOrderResource extends Resource
         if (HotelContext::isFiltering()) {
             $query->where('hotel_id', HotelContext::selectedId());
         }
-
+    
         return $query;
     }
 
