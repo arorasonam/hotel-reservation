@@ -6,6 +6,7 @@ use App\Filament\Resources\PosCategories\Pages\CreatePosCategory;
 use App\Filament\Resources\PosCategories\Pages\EditPosCategory;
 use App\Filament\Resources\PosCategories\Pages\ListPosCategories;
 use App\Helpers\HotelContext;
+use App\Models\Country;
 use App\Models\PosCategory;
 use App\Models\PosOutlet;
 use BackedEnum;
@@ -71,13 +72,22 @@ class PosCategoryResource extends Resource
                     )
                     ->searchable()
                     ->preload()
+                    ->live()
+                    ->afterStateUpdated(function (callable $set): void {
+                        $set('taxes', []);
+                    })
                     ->required()
                     ->dehydrated(true),
                 TextInput::make('name')
                     ->required(),
-                Select::make('tax_id')
-                    ->relationship('tax', 'name')
-                    ->label('Category Tax')
+                Select::make('taxes')
+                    ->relationship(
+                        'taxes',
+                        'name',
+                        modifyQueryUsing: fn (Builder $query, callable $get) => self::scopeTaxesToOutletCountry($query, $get('pos_outlet_id'))
+                    )
+                    ->label('Category Taxes')
+                    ->multiple()
                     ->searchable()
                     ->preload(),
                 Toggle::make('status')
@@ -102,6 +112,21 @@ class PosCategoryResource extends Resource
         return $query;
     }
 
+    protected static function scopeTaxesToOutletCountry(Builder $query, mixed $outletId): Builder
+    {
+        $location = PosOutlet::query()
+            ->with('hotel.locationable')
+            ->find($outletId)
+            ?->hotel
+            ?->locationable;
+
+        $countryId = $location instanceof Country ? $location->id : $location?->country_id;
+
+        return $query
+            ->where('status', true)
+            ->when($countryId, fn (Builder $query): Builder => $query->where('country_id', $countryId));
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -109,8 +134,9 @@ class PosCategoryResource extends Resource
                 TextColumn::make('outlet.name')
                     ->label('Outlet'),
                 TextColumn::make('name'),
-                TextColumn::make('tax.name')
-                    ->label('Tax')
+                TextColumn::make('taxes.name')
+                    ->label('Taxes')
+                    ->badge()
                     ->placeholder('No tax'),
                 IconColumn::make('status')
                     ->boolean(),

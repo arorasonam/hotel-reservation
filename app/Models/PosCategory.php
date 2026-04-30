@@ -27,4 +27,9 @@ class PosCategory extends Model
     {
         return $this->belongsTo(Tax::class);
     }
+
+    public function taxes()
+    {
+        return $this->belongsToMany(Tax::class, 'pos_category_tax');
+    }
 }

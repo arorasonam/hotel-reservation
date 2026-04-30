@@ -25,7 +25,11 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -34,10 +38,6 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Grid;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\RepeatableEntry;
 
 class PosOrderResource extends Resource
 {
@@ -225,6 +225,8 @@ class PosOrderResource extends Resource
                     ->schema([
                         Hidden::make('tax_id')
                             ->dehydrated(true),
+                        Hidden::make('tax_ids')
+                            ->dehydrated(true),
                         Select::make('pos_category_id')
                             ->label('Category')
                             // ->dehydrated(false)
@@ -247,6 +249,7 @@ class PosOrderResource extends Resource
                             ->afterStateUpdated(function (callable $set): void {
                                 $set('pos_item_id', null);
                                 $set('tax_id', null);
+                                $set('tax_ids', null);
                                 $set('tax_percentage', 0);
                                 $set('price', 0);
                                 $set('subtotal', 0);
@@ -281,17 +284,17 @@ class PosOrderResource extends Resource
                                     return;
                                 }
 
-                                $tax = $item->category?->tax;
-                                $taxId = $tax?->id;
+                                $taxData = self::getItemTaxData($item);
                                 $price = $item->price;
                                 $qty = $get('quantity') ?? 1;
-                                $taxPercent = $tax?->percentage ?? 0;
+                                $taxPercent = $taxData['percentage'];
 
                                 $subtotal = $price * $qty;
                                 $taxAmount = ($subtotal * $taxPercent) / 100;
                                 $total = $subtotal + $taxAmount;
 
-                                $set('tax_id', $taxId);
+                                $set('tax_id', $taxData['tax_id']);
+                                $set('tax_ids', $taxData['tax_ids']);
                                 $set('price', $price);
                                 $set('tax_percentage', $taxPercent);
                                 $set('subtotal', $subtotal);
@@ -310,8 +313,8 @@ class PosOrderResource extends Resource
                                     return;
                                 }
 
-                                $tax = $item->category?->tax;
-                                $taxPercent = $tax?->percentage ?? 0;
+                                $taxData = self::getItemTaxData($item);
+                                $taxPercent = $taxData['percentage'];
                                 $price = $item->price;
                                 $qty = $get('quantity') ?? 1;
 
@@ -319,7 +322,8 @@ class PosOrderResource extends Resource
                                 $taxAmount = ($subtotal * $taxPercent) / 100;
                                 $total = $subtotal + $taxAmount;
 
-                                $set('tax_id', $tax?->id);
+                                $set('tax_id', $taxData['tax_id']);
+                                $set('tax_ids', $taxData['tax_ids']);
                                 $set('price', $price);
                                 $set('tax_percentage', $taxPercent);
                                 $set('subtotal', $subtotal);
@@ -350,7 +354,10 @@ class PosOrderResource extends Resource
                             ->dehydrated(true),
                         Placeholder::make('applied_tax')
                             ->label('Applied Tax')
-                            ->content(fn ($get) => ($get('tax_percentage') ?? 0).'%'),
+                            ->content(fn ($get) => self::formatTaxBreakdown(
+                                $get('tax_ids') ?? array_filter([$get('tax_id')]),
+                                (float) ($get('subtotal') ?? 0)
+                            )),
                         TextInput::make('tax_percentage')
                             ->hidden()
                             ->reactive()
@@ -373,18 +380,18 @@ class PosOrderResource extends Resource
                         $price = $data['price'] ?? 0;
                         $qty = $data['quantity'] ?? 1;
 
-                        if (! empty($data['tax_id'])) {
-                            $tax = Tax::find($data['tax_id']);
-                            $taxPercent = $tax?->percentage ?? 0;
-                        } else {
-                            $taxPercent = 0;
-                        }
+                        $taxes = Tax::query()
+                            ->whereIn('id', $data['tax_ids'] ?? array_filter([$data['tax_id'] ?? null]))
+                            ->get();
+                        $taxPercent = (float) $taxes->sum('percentage');
 
                         $subtotal = $price * $qty;
                         $taxAmount = ($subtotal * $taxPercent) / 100;
 
                         $data['tax_percentage'] = $taxPercent;
                         $data['tax_amount'] = $taxAmount;
+                        $data['tax_id'] = $taxes->first()?->id;
+                        $data['tax_ids'] = $taxes->pluck('id')->values()->all();
                         $data['total'] = $subtotal + $taxAmount;
 
                         return $data;
@@ -419,6 +426,8 @@ class PosOrderResource extends Resource
                     ->money('INR'),
                 TextColumn::make('grand_total')
                     ->money('INR'),
+                TextColumn::make('created_at')
+                    ->dateTime(),
                 TextColumn::make('settled_at')
                     ->dateTime()
                     ->placeholder('Pending'),
@@ -476,7 +485,8 @@ class PosOrderResource extends Resource
                     ->icon('heroicon-o-printer')
                     ->url(fn ($record) => route('pos.invoice.print', $record->id))
                     ->openUrlInNewTab(),
-            ]);
+            ])
+            ->defaultSort('id', 'desc');
     }
 
     public static function getRelations(): array
@@ -494,51 +504,6 @@ class PosOrderResource extends Resource
             'edit' => EditPosOrder::route('/{record}/edit'),
             'view' => Pages\ViewPosOrder::route('/{record}'),
         ];
-    }
-
-    protected static function mutateFormDataBeforeCreate(array $data): array
-    {
-        return self::prepareCreateData($data);
-    }
-
-    public static function prepareCreateData(array $data): array
-    {
-        $subtotal = 0;
-        $taxAmount = 0;
-
-        foreach ($data['items'] as &$item) {
-            $itemSubtotal = $item['price'] * $item['quantity'];
-            $itemTax = (float) ($item['tax_amount'] ?? 0);
-            $item['total'] = $itemSubtotal + $itemTax;
-            $item['subtotal'] = $itemSubtotal;
-            $subtotal += $itemSubtotal;
-            $taxAmount += $itemTax;
-        }
-
-        $discount = (float) ($data['discount_amount'] ?? 0);
-        $grandTotal = $subtotal + $taxAmount - $discount;
-
-        $data['subtotal'] = $subtotal;
-        $data['tax_amount'] = $taxAmount;
-        $data['grand_total'] = $grandTotal;
-        $data['created_by'] = auth()->id();
-
-        if (($data['order_type'] ?? null) !== 'room_charge') {
-            $data['reservation_id'] = null;
-            $data['reservation_room_id'] = null;
-            $data['reservation_room_detail_id'] = null;
-            $data['guest_id'] = null;
-            $data['room_id'] = null;
-        } else {
-            $data = array_merge($data, self::getRoomPostingData($data['reservation_room_detail_id'] ?? null));
-        }
-
-        if ($grandTotal <= 0) {
-            $data['status'] = 'paid';
-            $data['settled_at'] = now();
-        }
-
-        return $data;
     }
 
     /**
@@ -590,6 +555,46 @@ class PosOrderResource extends Resource
             ->first();
 
         return $reservationGuest?->guest_id ?? $reservation->guest_id;
+    }
+
+    /**
+     * @return array{tax_id: int|null, tax_ids: array<int>, percentage: float}
+     */
+    private static function getItemTaxData(PosItem $item): array
+    {
+        $taxes = $item->category?->taxes()
+            ->where('status', true)
+            ->get();
+
+        if ($taxes?->isEmpty() ?? true) {
+            $taxes = collect(array_filter([$item->category?->tax]));
+        }
+
+        return [
+            'tax_id' => $taxes->first()?->id,
+            'tax_ids' => $taxes->pluck('id')->values()->all(),
+            'percentage' => (float) $taxes->sum('percentage'),
+        ];
+    }
+
+    private static function formatTaxBreakdown(array $taxIds, float $subtotal = 0): string
+    {
+        $taxes = Tax::query()
+            ->whereIn('id', $taxIds)
+            ->orderBy('name')
+            ->get();
+
+        if ($taxes->isEmpty()) {
+            return '0%';
+        }
+
+        return $taxes
+            ->map(function (Tax $tax) use ($subtotal): string {
+                $amount = $subtotal > 0 ? ' (Rs. '.number_format(($subtotal * (float) $tax->percentage) / 100, 2).')' : '';
+
+                return $tax->name.' '.number_format((float) $tax->percentage, 2).'%'.$amount;
+            })
+            ->join(' + ');
     }
 
     public static function infolist(Schema $schema): Schema
@@ -667,8 +672,9 @@ class PosOrderResource extends Resource
                                     TextEntry::make('price')
                                         ->money('INR'),
 
-                                    TextEntry::make('tax_percentage')
-                                        ->suffix('%'),
+                                    TextEntry::make('tax_breakdown')
+                                        ->label('Taxes')
+                                        ->state(fn ($record): string => self::formatTaxBreakdown($record->tax_ids ?: array_filter([$record->tax_id]), (float) $record->subtotal)),
 
                                     TextEntry::make('subtotal')
                                         ->money('INR'),

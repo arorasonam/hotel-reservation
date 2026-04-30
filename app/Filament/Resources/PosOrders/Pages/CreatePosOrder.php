@@ -12,7 +12,28 @@ class CreatePosOrder extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return PosOrderResource::prepareCreateData($data);
+        $items = $this->data['items'] ?? [];
+
+        $subtotal = 0;
+        $taxAmount = 0;
+
+        foreach ($items as $item) {
+            $itemSubtotal = $item['price'] * $item['quantity'];
+            $itemTax = (float) ($item['tax_amount'] ?? 0);
+
+            $subtotal += $itemSubtotal;
+            $taxAmount += $itemTax;
+        }
+
+        $discount = (float) ($data['discount_amount'] ?? 0);
+        $grandTotal = $subtotal + $taxAmount - $discount;
+
+        $data['subtotal'] = $subtotal;
+        $data['tax_amount'] = $taxAmount;
+        $data['grand_total'] = $grandTotal;
+        $data['created_by'] = auth()->id();
+
+        return $data;
     }
 
     protected function afterCreate(): void

@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Auth;
 
 class PosOrderItem extends Model
 {
@@ -14,11 +13,19 @@ class PosOrderItem extends Model
         'quantity',
         'price',
         'tax_id',
+        'tax_ids',
         'tax_amount',
         'tax_percentage',
         'subtotal',
-        'total'
+        'total',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'tax_ids' => 'array',
+        ];
+    }
 
     public function order()
     {
@@ -28,6 +35,26 @@ class PosOrderItem extends Model
     public function item()
     {
         return $this->belongsTo(PosItem::class, 'pos_item_id');
+    }
+
+    public function getTaxBreakdownAttribute(): array
+    {
+        $taxIds = $this->tax_ids ?: array_filter([$this->tax_id]);
+
+        if (empty($taxIds)) {
+            return [];
+        }
+
+        return Tax::query()
+            ->whereIn('id', $taxIds)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Tax $tax): array => [
+                'name' => $tax->name,
+                'percentage' => (float) $tax->percentage,
+                'amount' => ((float) $this->subtotal * (float) $tax->percentage) / 100,
+            ])
+            ->all();
     }
 
     protected static function booted()

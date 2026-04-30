@@ -17,6 +17,9 @@ class TaxesTable
             ->columns([
                 TextColumn::make('name')
                     ->searchable(),
+                TextColumn::make('country.name')
+                    ->label('Country')
+                    ->searchable(),
                 TextColumn::make('percentage')
                     ->numeric()
                     ->sortable(),
