@@ -185,7 +185,8 @@ class HousekeepingStaffResource extends Resource
                 ]),
             ])
             ->defaultSort('name')
-            ->striped();
+            ->striped()
+            ->defaultSort('id', 'desc');
     }
 
     public static function getRelations(): array

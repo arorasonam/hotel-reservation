@@ -308,7 +308,8 @@ class HousekeepingTaskResource extends Resource
             ])
             ->poll('10s')
             ->defaultSort('due_at', 'asc')
-            ->striped();
+            ->striped()
+            ->defaultSort('id', 'desc');
     }
 
     public static function getRelations(): array

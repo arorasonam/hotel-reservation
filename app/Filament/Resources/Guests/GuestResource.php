@@ -194,7 +194,8 @@ class GuestResource extends Resource
                 ViewAction::make(),
                 EditAction::make(),
                 DeleteAction::make(),
-            ]);
+            ])
+            ->defaultSort('id', 'desc');
     }
 
 
