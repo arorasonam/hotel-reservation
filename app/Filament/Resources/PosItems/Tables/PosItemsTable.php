@@ -8,6 +8,8 @@ use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use App\Filament\Imports\ItemImporter;
+use Filament\Actions\ImportAction;
 
 class PosItemsTable
 {
@@ -52,6 +54,13 @@ class PosItemsTable
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
+            ])
+            ->headerActions([
+                ImportAction::make()
+                    ->importer(ItemImporter::class)
+                    ->label('Import Items')
+                    ->icon('heroicon-o-arrow-up-tray')
+                    ->color('info')
             ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\PosOrders\PosOrderResource;
 use App\Models\PosOrder;
 use App\Models\Reservation;
 use App\Models\ReservationRoom;
@@ -90,6 +91,63 @@ class ReservationFolioIntegrationTest extends TestCase
             'amount' => 50.00,
         ]);
 
+    }
+
+    public function test_room_posting_create_data_uses_the_selected_room_detail_guest(): void
+    {
+        $reservation = $this->createReservation(['guest_id' => null]);
+        $guestId = DB::table('guests')->where('email', 'john@example.com')->value('id');
+        $roomId = $this->createRoom($reservation->hotel_id, $reservation->room_type_id);
+
+        DB::table('reservation_guests')->insert([
+            'reservation_id' => $reservation->id,
+            'guest_id' => $guestId,
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john@example.com',
+            'phone' => '1234567890',
+            'is_primary' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $categoryId = DB::table('reservation_room_categories')->insertGetId([
+            'reservation_id' => $reservation->id,
+            'room_type_id' => $reservation->room_type_id,
+            'meal_plan_id' => null,
+            'rooms_count' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $detailId = DB::table('reservation_room_details')->insertGetId([
+            'category_id' => $categoryId,
+            'room_number' => '101',
+            'adults' => 2,
+            'children' => 0,
+            'infants' => 0,
+            'status' => 'checked_in',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $data = PosOrderResource::prepareCreateData([
+            'order_type' => 'room_charge',
+            'reservation_room_detail_id' => $detailId,
+            'items' => [
+                [
+                    'price' => 100,
+                    'quantity' => 2,
+                    'tax_amount' => 18,
+                ],
+            ],
+            'discount_amount' => 0,
+            'status' => 'draft',
+        ]);
+
+        $this->assertSame($reservation->id, $data['reservation_id']);
+        $this->assertSame($guestId, $data['guest_id']);
+        $this->assertSame($roomId, $data['room_id']);
     }
 
     private function createReservation(array $overrides = []): Reservation

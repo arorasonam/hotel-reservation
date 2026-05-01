@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -41,5 +42,10 @@ class User extends Authenticatable
     public function posOutlet()
     {
         return $this->belongsTo(PosOutlet::class, 'pos_outlet_id');
+    }
+
+    public function assignedHousekeepingTasks(): HasMany
+    {
+        return $this->hasMany(HousekeepingTask::class, 'assigned_to_id');
     }
 }

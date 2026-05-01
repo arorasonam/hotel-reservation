@@ -77,7 +77,7 @@ class Reservation extends Model
         });
 
         static::saved(function (Reservation $reservation): void {
-            if (! $reservation->roomCategories()->exists()) {
+            if (! $reservation->roomCategories()->exists()) { // GP check if need to update for roomdetail
                 app(ReservationFolioService::class)->syncReservationStayCharge($reservation);
             }
         });

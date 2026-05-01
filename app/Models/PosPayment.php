@@ -12,6 +12,7 @@ class PosPayment extends Model
         'pos_order_id',
         'reservation_id',
         'reservation_room_id',
+        'reservation_room_detail_id',
         'payment_method',
         'amount',
         'transaction_reference',
@@ -42,6 +43,11 @@ class PosPayment extends Model
         return $this->belongsTo(ReservationRoom::class);
     }
 
+    public function reservationRoomDetail(): BelongsTo
+    {
+        return $this->belongsTo(ReservationRoomDetail::class);
+    }
+
     protected static function booted(): void
     {
         static::saved(function (PosPayment $payment): void {
@@ -69,7 +75,7 @@ class PosPayment extends Model
             ])->save();
         }
 
-        app(ReservationFolioService::class)->syncPosPayment($this->load('order.reservation', 'order.reservationRoom'));
+        app(ReservationFolioService::class)->syncPosPayment($this->load('order.reservation', 'order.reservationRoomDetail'));
 
         $order->refreshSettlementStatus();
     }

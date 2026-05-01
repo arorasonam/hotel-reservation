@@ -8,18 +8,25 @@ use App\Filament\Resources\Reservations\Pages\ListReservations;
 use App\Filament\Resources\Reservations\Pages\ViewReservation;
 use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
 use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
-use App\Models\Guest; // Using Schema instead of Form
+use App\Helpers\HotelContext; // Using Schema instead of Form
+use App\Models\Guest;
+use App\Models\Hotel;
 use App\Models\HotelRoom;
 use App\Models\MealPlan;
 use App\Models\Reservation;
+use App\Models\ReservationRoomDetail;
 use App\Models\RoomType;
 use BackedEnum;
 use Carbon\Carbon;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -27,19 +34,16 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\FileUpload;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 use UnitEnum;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\CheckboxList;
-use Filament\Actions\Action;
-use Illuminate\Database\Eloquent\Builder;
 
 class ReservationResource extends Resource
 {
@@ -56,6 +60,12 @@ class ReservationResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
+
+        // filter hotel ID //
+        // if (HotelContext::isFiltering()) {
+        //     $query->where('hotel_id', HotelContext::selectedId());
+        // }
+
         $user = auth()->user();
 
         // If SuperAdmin, show everything
@@ -65,6 +75,7 @@ class ReservationResource extends Resource
 
         // For HotelAdmin, filter by the hotel group they belong to
         // Assuming your User model has a 'hotel_group_id' or similar relationship
+
         return $query->whereHas('hotel', function ($q) use ($user) {
             $q->where('hotel_group_id', $user->hotel_group_id);
         });
@@ -108,10 +119,10 @@ class ReservationResource extends Resource
                                                 })
                                                 ->default(function () {
                                                     $user = auth()->user();
-                                                    $query = \App\Models\Hotel::query();
+                                                    $query = Hotel::query();
 
                                                     // Apply role-based filter to the default search as well
-                                                    if (!$user->hasRole('super_admin')) {
+                                                    if (! $user->hasRole('super_admin')) {
                                                         $query->where('hotel_group_id', $user->hotel_group_id);
                                                     }
 
@@ -121,7 +132,7 @@ class ReservationResource extends Resource
                                                 ->live()
                                                 ->searchable()
                                                 ->native(false)
-                                                ->columnSpanFull()
+                                                ->columnSpanFull(),
                                         ]),
                                         Grid::make(2)->schema([
                                             Select::make('booking_source_id')
@@ -144,7 +155,6 @@ class ReservationResource extends Resource
                                             DatePicker::make('check_in')->label('Arrival Date')->required()->live()->inlineLabel(),
                                             DatePicker::make('check_out')->label('Departure Date')->required()->live()->inlineLabel(),
                                         ]),
-
 
                                         Grid::make(2)->schema([
                                             TimePicker::make('check_in_time')->label('Check-in Time')->default('14:00')->seconds(false)->inlineLabel(),
@@ -262,7 +272,7 @@ class ReservationResource extends Resource
                                                 Grid::make(3)->schema([
                                                     Select::make('room_type_id')
                                                         ->label('Category')
-                                                        ->options(fn() => \App\Models\RoomType::pluck('name', 'id'))
+                                                        ->options(fn() => RoomType::pluck('name', 'id'))
                                                         ->live()
                                                         ->required()
                                                         ->afterStateUpdated(function ($state, $set, $get) {
@@ -276,7 +286,7 @@ class ReservationResource extends Resource
                                                                 ->value('room_number');
 
                                                             $hotelId = $get('../../hotel_id');
-                                                            $firstMealPlan = \App\Models\MealPlan::where('hotel_id', $hotelId)
+                                                            $firstMealPlan = MealPlan::where('hotel_id', $hotelId)
                                                                 ->where('room_type_id', (int) $state)
                                                                 ->where('is_active', true)
                                                                 ->value('id');
@@ -285,7 +295,7 @@ class ReservationResource extends Resource
                                                             $set('meal_plan_id', $firstMealPlan);
 
                                                             // Ensure rooms_count is at least 1
-                                                            if (!$get('rooms_count')) {
+                                                            if (! $get('rooms_count')) {
                                                                 $set('rooms_count', 1);
                                                             }
 
@@ -304,9 +314,11 @@ class ReservationResource extends Resource
                                                         ->options(function ($get) {
                                                             $roomTypeId = $get('room_type_id');
                                                             $hotelId = $get('../../hotel_id');
-                                                            if (!$roomTypeId || !$hotelId) return [];
+                                                            if (! $roomTypeId || ! $hotelId) {
+                                                                return [];
+                                                            }
 
-                                                            return \App\Models\MealPlan::where('hotel_id', $hotelId)
+                                                            return MealPlan::where('hotel_id', $hotelId)
                                                                 ->where('room_type_id', (int) $roomTypeId)
                                                                 ->where('is_active', true)
                                                                 ->pluck('name', 'id');
@@ -317,9 +329,11 @@ class ReservationResource extends Resource
                                                         ->default(function ($get) {
                                                             $roomTypeId = $get('room_type_id');
                                                             $hotelId = $get('../../hotel_id');
-                                                            if (!$roomTypeId || !$hotelId) return null;
+                                                            if (! $roomTypeId || ! $hotelId) {
+                                                                return null;
+                                                            }
 
-                                                            return \App\Models\MealPlan::where('hotel_id', $hotelId)
+                                                            return MealPlan::where('hotel_id', $hotelId)
                                                                 ->where('room_type_id', (int) $roomTypeId)
                                                                 ->where('is_active', true)
                                                                 ->orderBy('name')
@@ -333,7 +347,7 @@ class ReservationResource extends Resource
                                                         ->live()
                                                         ->afterStateHydrated(function ($state, $set, $get) {
                                                             // If it's a new record and no details exist, create the first row
-                                                            if (!$get('roomDetails')) {
+                                                            if (! $get('roomDetails')) {
                                                                 $roomTypeId = $get('room_type_id');
                                                                 $hotelId = $get('../../hotel_id');
                                                                 $firstRoom = $roomTypeId
@@ -364,7 +378,7 @@ class ReservationResource extends Resource
                                                                 : 'Auto';
 
                                                             $details = [];
-                                                            for ($i = 1; $i <= (int)$state; $i++) {
+                                                            for ($i = 1; $i <= (int) $state; $i++) {
                                                                 $details[] = [
                                                                     'adults' => 2,
                                                                     'children' => 0,
@@ -403,51 +417,24 @@ class ReservationResource extends Resource
 
                                                                     Select::make('room_number')
                                                                         ->label('Room No.')
-                                                                        ->distinct()
-                                                                        ->fixIndistinctState()
+                                                                        ->searchable()
+                                                                        ->preload()
                                                                         ->options(function ($get) {
-                                                                            /** 
-                                                                             * Pathing Check:
-                                                                             * ../../room_type_id -> Up to the Category row
-                                                                             * ../../../hotel_id -> Up to the main form (Booking details)
-                                                                             */
                                                                             $roomTypeId = $get('../../room_type_id');
                                                                             $hotelId = $get('../../../hotel_id');
-
-                                                                            if (!$roomTypeId || !$hotelId) return [];
+                                                                            // if (!$roomTypeId || !$hotelId) return [];
                                                                             return \App\Models\HotelRoom::query()
                                                                                 ->where('hotel_id', $hotelId)
                                                                                 ->where('room_type_id', $roomTypeId)
-                                                                                ->where('status', 'vacant')
+                                                                                ->whereIn('status', ['vacant', 'cleaning'])
+                                                                                ->orderBy('room_number', 'asc')
                                                                                 ->pluck('room_number', 'room_number')
                                                                                 ->toArray();
                                                                         })
                                                                         ->live()
+                                                                        ->distinct()
+                                                                        ->fixIndistinctState()
                                                                         ->required()
-                                                                        ->native(false)
-                                                                        /** 
-                                                                         * THE FIX: afterStateHydrated only runs on load. 
-                                                                         * To auto-fill when a user ADDS a new room row, 
-                                                                         * use the afterStateUpdated of the PARENT room_type_id 
-                                                                         * or a default logic here.
-                                                                         */
-                                                                        ->afterStateHydrated(function ($state, $set, $get) {
-                                                                            if (!$state) {
-                                                                                $roomTypeId = $get('../../room_type_id');
-                                                                                $hotelId = $get('../../../hotel_id');
-
-                                                                                if ($roomTypeId && $hotelId) {
-                                                                                    $firstRoom = \App\Models\HotelRoom::where('hotel_id', $hotelId)
-                                                                                        ->where('room_type_id', $roomTypeId)
-                                                                                        ->where('status', 'vacant')
-                                                                                        ->pluck('room_number', 'room_number')
-                                                                                        ->orderBy('room_number')
-                                                                                        ->value('room_number');
-
-                                                                                    $set('room_number', $firstRoom);
-                                                                                }
-                                                                            }
-                                                                        })
                                                                         ->columnSpan(2),
                                                                 ]),
                                                             ])
@@ -490,7 +477,7 @@ class ReservationResource extends Resource
                                                                     'travel_auhtorization' => 'Travel Auhtorization',
                                                                     'cwt_document' => 'CWT Document',
                                                                     'carnet_de_ext' => 'Carnet De Ext.',
-                                                                    'fund_certificate' => 'Fund Certificate'
+                                                                    'fund_certificate' => 'Fund Certificate',
                                                                 ]),
                                                             TextInput::make('identity_number'),
 
@@ -503,11 +490,11 @@ class ReservationResource extends Resource
                                                                 ->acceptedFileTypes([
                                                                     'image/jpeg',
                                                                     'image/png',
-                                                                    'application/pdf'
+                                                                    'application/pdf',
                                                                 ])
                                                                 ->maxSize(2048)
                                                                 ->downloadable()
-                                                                ->openable()
+                                                                ->openable(),
                                                         ]),
                                                     ])
                                                     ->afterStateUpdated(function ($state, $set) {
@@ -540,6 +527,22 @@ class ReservationResource extends Resource
                             ->schema([
                                 Section::make('Bill Summary')
                                     ->schema([
+                                        // TextInput::make('base_price')->label('Room Charges')->numeric()->prefix('₹')->live(onBlur: true)
+                                        //     ->afterStateUpdated(fn($set, $get) => self::calculateTotal($set, $get)),
+
+                                        // TextInput::make('tax_amount')->label('Taxes')->numeric()->prefix('₹')->default(0)->live(onBlur: true)
+                                        //     ->afterStateUpdated(fn($set, $get) => self::calculateTotal($set, $get)),
+
+                                        // Placeholder::make('total_display')
+                                        //     ->label('')
+                                        //     ->content(fn($get) => new HtmlString('
+                                        //         <div class="pt-4 border-t mt-4 text-right">
+                                        //             <div class="flex justify-between text-lg font-bold">
+                                        //                 <span>Net Payable</span>
+                                        //                 <span class="text-primary-600">₹' . number_format((float) ($get('total_amount') ?? 0), 2) . '</span>
+                                        //             </div>
+                                        //         </div>
+                                        //     ')),
                                         Placeholder::make('bill_details')
                                             ->label('')
                                             ->content(fn($record) => view('filament.components.bill-summary-display', [
@@ -665,13 +668,13 @@ class ReservationResource extends Resource
 
                                 // 2. Query the Details table directly using those Category IDs
                                 // 3. Filter out 'checked_out' rooms as they shouldn't be checked in again
-                                return \App\Models\ReservationRoomDetail::whereIn('category_id', $categoryIds)
+                                return ReservationRoomDetail::whereIn('category_id', $categoryIds)
                                     ->where('status', '!=', 'checked_out')
                                     ->where('status', '!=', 'checked_in')
                                     ->get()
                                     ->mapWithKeys(fn($detail) => [
                                         // Use the unique detail ID as the key to prevent selection conflicts
-                                        $detail->id => "Room " . ($detail->room_number ?? 'Auto') . " (" . ucfirst($detail->status ?? 'Confirmed') . ")"
+                                        $detail->id => 'Room ' . ($detail->room_number ?? 'Auto') . ' (' . ucfirst($detail->status ?? 'Confirmed') . ')',
                                     ]);
                             })
                             ->required()
@@ -681,7 +684,7 @@ class ReservationResource extends Resource
                         $selectedIds = $data['selected_room_details'];
 
                         foreach ($selectedIds as $detailId) {
-                            $detail = \App\Models\ReservationRoomDetail::find($detailId);
+                            $detail = ReservationRoomDetail::find($detailId);
 
                             if ($detail) {
                                 // 1. Update the individual room detail status
@@ -689,7 +692,7 @@ class ReservationResource extends Resource
 
                                 // 2. Sync with the physical HotelRoom table
                                 if ($detail->room_number && $detail->room_number !== 'Auto') {
-                                    \App\Models\HotelRoom::where('room_number', $detail->room_number)
+                                    HotelRoom::where('room_number', $detail->room_number)
                                         ->update(['status' => 'occupied']);
                                 }
                             }
@@ -698,8 +701,8 @@ class ReservationResource extends Resource
                         // 3. Logic to update parent reservation status if all rooms are now checked in
                         self::syncParentStatus($record);
 
-                        \Filament\Notifications\Notification::make()
-                            ->title(count($selectedIds) . " rooms successfully checked in")
+                        Notification::make()
+                            ->title(count($selectedIds) . ' rooms successfully checked in')
                             ->success()
                             ->send();
                     }),
@@ -750,9 +753,9 @@ class ReservationResource extends Resource
         $reservation->update(['status' => $status]);
 
         $physicalStatus = match ($status) {
-            'checked_in'  => 'occupied',
+            'checked_in' => 'occupied',
             'checked_out' => 'dirty',
-            default       => 'vacant',
+            default => 'vacant',
         };
 
         // Update all rooms in the tiered structure
@@ -761,21 +764,21 @@ class ReservationResource extends Resource
                 $detail->update(['status' => $status]);
 
                 if ($detail->room_number && $detail->room_number !== 'Auto') {
-                    \App\Models\HotelRoom::where('room_number', $detail->room_number)
+                    HotelRoom::where('room_number', $detail->room_number)
                         ->update(['status' => $physicalStatus]);
                 }
             }
         }
 
-        \Filament\Notifications\Notification::make()
-            ->title("Reservation " . str_replace('_', ' ', $status) . " successfully")
+        Notification::make()
+            ->title('Reservation ' . str_replace('_', ' ', $status) . ' successfully')
             ->success()
             ->send();
     }
 
     protected static function syncParentStatus($reservation): void
     {
-        $details = \App\Models\ReservationRoomDetail::whereIn(
+        $details = ReservationRoomDetail::whereIn(
             'category_id',
             $reservation->roomCategories()->pluck('id')
         )->get();

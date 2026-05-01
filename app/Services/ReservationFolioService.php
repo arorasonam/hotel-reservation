@@ -7,6 +7,7 @@ use App\Models\PosPayment;
 use App\Models\Reservation;
 use App\Models\ReservationFolio;
 use App\Models\ReservationRoom;
+use App\Models\ReservationRoomDetail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -81,16 +82,17 @@ class ReservationFolioService
 
     public function syncPosOrderCharges(PosOrder $order): void
     {
-        if (! $order->reservation_id || ! $order->reservation_room_id || $order->status === 'cancelled') {
+        if (! $order->reservation_id || ! $order->reservation_room_detail_id || $order->status === 'cancelled') {
             $this->deleteEntriesForSource('pos_order', $order->id);
 
             return;
         }
 
         $reservation = $order->reservation;
-        $reservationRoom = $order->reservationRoom;
-
-        if (! $reservation || ! $reservationRoom || ! $reservationRoom->isCheckedIn() || $order->status === 'draft') {
+        $reservationRoomDetail = $order->reservationRoomDetail;
+        
+        // if (! $reservation || ! $reservationRoomDetail || ! $reservationRoomDetail->isCheckedIn() || $order->status === 'draft') {
+         if (! $reservation || ! $reservationRoomDetail || $order->status === 'draft') {
             $this->deleteEntriesForSource('pos_order', $order->id);
 
             return;
@@ -101,7 +103,7 @@ class ReservationFolioService
 
         $this->syncOrderComponent(
             reservation: $reservation,
-            reservationRoom: $reservationRoom,
+            reservationRoomDetail: $reservationRoomDetail,
             order: $order,
             sourceKey: 'charge',
             amount: (float) $order->subtotal,
@@ -114,7 +116,7 @@ class ReservationFolioService
 
         $this->syncOrderComponent(
             reservation: $reservation,
-            reservationRoom: $reservationRoom,
+            reservationRoomDetail: $reservationRoomDetail,
             order: $order,
             sourceKey: 'tax',
             amount: (float) $order->tax_amount,
@@ -127,7 +129,7 @@ class ReservationFolioService
 
         $this->syncOrderComponent(
             reservation: $reservation,
-            reservationRoom: $reservationRoom,
+            reservationRoomDetail: $reservationRoomDetail,
             order: $order,
             sourceKey: 'discount',
             amount: (float) $order->discount_amount,
@@ -164,19 +166,19 @@ class ReservationFolioService
 
             $order->refresh();
         }
-
+dd($order);
         $this->syncPosOrderCharges($order);
 
-        if (! $order->reservation_id || ! $order->reservation_room_id || $payment->payment_method === 'room_posting') {
+        if (! $order->reservation_id || ! $order->reservation_room_detail_id || $payment->payment_method === 'room_posting') {
             $this->deleteEntry('pos_payment', $payment->id, 'payment');
 
             return;
         }
 
         $reservation = $order->reservation;
-        $reservationRoom = $order->reservationRoom;
+        $reservationRoomDetail = $order->reservationRoomDetail;
 
-        if (! $reservation || ! $reservationRoom || ! $reservationRoom->isCheckedIn()) {
+        if (! $reservation || ! $reservationRoomDetail || ! $reservationRoomDetail->isCheckedIn()) {
             $this->deleteEntry('pos_payment', $payment->id, 'payment');
 
             return;
@@ -184,7 +186,7 @@ class ReservationFolioService
 
         $this->upsertEntry(
             reservation: $reservation,
-            reservationRoom: $reservationRoom,
+            reservationRoom: null,
             source: 'pos_payment',
             sourceId: $payment->id,
             sourceKey: 'payment',
@@ -195,6 +197,7 @@ class ReservationFolioService
             postedAt: $payment->paid_at ?? $payment->created_at ?? now(),
             reference: $payment->transaction_reference ?: $order->order_number,
             notes: ucfirst((string) $payment->payment_method),
+            reservationRoomDetail: $reservationRoomDetail,
         );
     }
 
@@ -223,11 +226,20 @@ class ReservationFolioService
         return $this->summarizeEntries($entries);
     }
 
+    public function summarizeReservationRoomDetail(ReservationRoomDetail $reservationRoomDetail): array
+    {
+        /** @var Collection<int, ReservationFolio> $entries */
+        $entries = $reservationRoomDetail->folios()->get();
+
+        return $this->summarizeEntries($entries);
+    }
+
     public function summarizeMasterFolio(Reservation $reservation): array
     {
         /** @var Collection<int, ReservationFolio> $entries */
         $entries = $reservation->folios()
             ->whereNull('reservation_room_id')
+            ->whereNull('reservation_room_detail_id')
             ->get();
 
         return $this->summarizeEntries($entries);
@@ -252,7 +264,7 @@ class ReservationFolioService
 
     private function syncOrderComponent(
         Reservation $reservation,
-        ReservationRoom $reservationRoom,
+        ReservationRoomDetail $reservationRoomDetail,
         PosOrder $order,
         string $sourceKey,
         float $amount,
@@ -270,7 +282,7 @@ class ReservationFolioService
 
         $this->upsertEntry(
             reservation: $reservation,
-            reservationRoom: $reservationRoom,
+            reservationRoom: null,
             source: 'pos_order',
             sourceId: $order->id,
             sourceKey: $sourceKey,
@@ -280,6 +292,7 @@ class ReservationFolioService
             entryType: $entryType,
             postedAt: $postedAt,
             reference: $reference,
+            reservationRoomDetail: $reservationRoomDetail,
         );
     }
 
@@ -296,6 +309,7 @@ class ReservationFolioService
         mixed $postedAt,
         ?string $reference = null,
         ?string $notes = null,
+        ?ReservationRoomDetail $reservationRoomDetail = null,
     ): ReservationFolio {
         return ReservationFolio::query()->updateOrCreate(
             [
@@ -306,6 +320,7 @@ class ReservationFolioService
             [
                 'reservation_id' => $reservation->getKey(),
                 'reservation_room_id' => $reservationRoom?->getKey(),
+                'reservation_room_detail_id' => $reservationRoomDetail?->getKey(),
                 'description' => $description,
                 'reference' => $reference,
                 'notes' => $notes,

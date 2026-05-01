@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Reservation;
-use App\Models\ReservationRoom;
+use App\Models\ReservationRoomDetail;
 use App\Services\ReservationFolioService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
@@ -20,10 +20,10 @@ class ReservationInvoiceController extends Controller
         $reservation->load([
             'hotel',
             'reservationGuests',
-            'reservationRooms.roomType',
-            'reservationRooms.mealPlan',
-            'reservationRooms.folios' => fn ($query) => $query->orderBy('posted_at')->orderBy('id'),
-            'folios' => fn ($query) => $query->with('reservationRoom')->orderBy('posted_at')->orderBy('id'),
+            'roomCategories.roomType',
+            'roomCategories.mealPlan',
+            'roomCategories.roomDetails.folios' => fn ($query) => $query->orderBy('posted_at')->orderBy('id'),
+            'folios' => fn ($query) => $query->with('reservationRoomDetail')->orderBy('posted_at')->orderBy('id'),
         ]);
 
         return view('reservations.invoice', [
@@ -34,23 +34,23 @@ class ReservationInvoiceController extends Controller
         ]);
     }
 
-    public function printRoomFolio(Reservation $reservation, ReservationRoom $reservationRoom): View
+    public function printRoomFolio(Reservation $reservation, ReservationRoomDetail $reservationRoomDetail): View
     {
-        abort_unless((int) $reservationRoom->reservation_id === (int) $reservation->getKey(), 404);
+        abort_unless((int) $reservationRoomDetail->category?->reservation_id === (int) $reservation->getKey(), 404);
 
         $reservation->load(['hotel', 'reservationGuests']);
-        $reservationRoom->load([
-            'roomType',
-            'mealPlan',
+        $reservationRoomDetail->load([
+            'category.roomType',
+            'category.mealPlan',
             'folios' => fn ($query) => $query->orderBy('posted_at')->orderBy('id'),
         ]);
 
         return view('reservations.invoice', [
             'reservation' => $reservation,
-            'summary' => $this->folioService->summarizeReservationRoom($reservationRoom),
-            'folioTitle' => 'Room '.$reservationRoom->room_number.' Folio',
+            'summary' => $this->folioService->summarizeReservationRoomDetail($reservationRoomDetail),
+            'folioTitle' => 'Room '.$reservationRoomDetail->room_number.' Folio',
             'folioScope' => 'room',
-            'selectedRoom' => $reservationRoom,
+            'selectedRoom' => $reservationRoomDetail,
         ]);
     }
 
@@ -75,10 +75,10 @@ class ReservationInvoiceController extends Controller
         $reservation->load([
             'hotel',
             'reservationGuests',
-            'reservationRooms.roomType',
-            'reservationRooms.mealPlan',
-            'reservationRooms.folios' => fn ($query) => $query->orderBy('posted_at')->orderBy('id'),
-            'folios' => fn ($query) => $query->with('reservationRoom')->orderBy('posted_at')->orderBy('id'),
+            'roomCategories.roomType',
+            'roomCategories.mealPlan',
+            'roomCategories.roomDetails.folios' => fn ($query) => $query->orderBy('posted_at')->orderBy('id'),
+            'folios' => fn ($query) => $query->with('reservationRoomDetail')->orderBy('posted_at')->orderBy('id'),
         ]);
 
         $pdf = Pdf::loadView('reservations.invoice', [

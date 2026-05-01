@@ -32,6 +32,23 @@ th, td{
 
 <body>
 
+@php
+    $taxSummary = collect();
+
+    foreach ($order->items as $lineItem) {
+        foreach ($lineItem->tax_breakdown as $tax) {
+            $key = $tax['name'].'|'.$tax['percentage'];
+            $current = $taxSummary->get($key, [
+                'name' => $tax['name'],
+                'percentage' => $tax['percentage'],
+                'amount' => 0,
+            ]);
+            $current['amount'] += $tax['amount'];
+            $taxSummary->put($key, $current);
+        }
+    }
+@endphp
+
 <div class="header">
 <h2>{{ $order->hotel->name ?? 'Hotel POS' }}</h2>
 <h4>{{ $order->outlet->name ?? 'Hotel Outlet' }}</h4>
@@ -53,6 +70,13 @@ Table No:
 </p>
 @endif
 
+@if($order->reservationRoomDetail)
+<p>
+Room:
+{{ $order->reservationRoomDetail->room_number }}
+</p>
+@endif
+
 <hr>
 
 <table>
@@ -63,7 +87,7 @@ Table No:
 <th>Item</th>
 <th>Qty</th>
 <th>Price</th>
-<th>Tax Percentage</th>
+<th>Taxes</th>
 <th>Tax Amount</th>
 <th>Total</th>
 </tr>
@@ -78,7 +102,13 @@ Table No:
 <td>{{ $item->item->name }}</td>
 <td>{{ $item->quantity }}</td>
 <td>{{ $item->price }}</td>
-<td>{{ $item->tax_percentage }}</td>
+<td>
+@forelse($item->tax_breakdown as $tax)
+{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}% (Rs. {{ number_format($tax['amount'], 2) }})<br>
+@empty
+0%
+@endforelse
+</td>
 <td>{{ $item->tax_amount }}</td>
 <td>{{ $item->total }}</td>
 </tr>
@@ -94,7 +124,10 @@ Table No:
 <p>Subtotal: Rs. {{ $order->subtotal }}</p>
 
 @if($order->tax_amount)
-<p>Tax: Rs. {{ $order->tax_amount }}</p>
+@foreach($taxSummary as $tax)
+<p>{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}%: Rs. {{ number_format($tax['amount'], 2) }}</p>
+@endforeach
+<p>Tax Total: Rs. {{ $order->tax_amount }}</p>
 @endif
 
 @if($order->discount_amount)

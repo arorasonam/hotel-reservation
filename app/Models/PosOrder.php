@@ -14,6 +14,7 @@ class PosOrder extends Model
         'hotel_id',
         'reservation_id',
         'reservation_room_id',
+        'reservation_room_detail_id',
         'guest_id',
         'room_id',
         'pos_outlet_id',
@@ -54,6 +55,11 @@ class PosOrder extends Model
     public function reservationRoom(): BelongsTo
     {
         return $this->belongsTo(ReservationRoom::class);
+    }
+
+    public function reservationRoomDetail(): BelongsTo
+    {
+        return $this->belongsTo(ReservationRoomDetail::class);
     }
 
     public function guest(): BelongsTo

@@ -11,13 +11,16 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             'user',
+            'housekeeping',
             'super_admin',
             'hotel_admin',
+            'waitstaff',
+            'bartender'
         ];
 
         foreach ($roles as $role) {
             Role::firstOrCreate([
-                'name'       => $role,
+                'name' => $role,
                 'guard_name' => 'web',
             ]);
         }
