@@ -26,7 +26,7 @@ class PosItemsTable
                 TextColumn::make('name')
                     ->searchable(),
                 TextColumn::make('price')
-                    ->money()
+                    ->money('INR')
                     ->sortable(),
                 TextColumn::make('category.tax.percentage')
                     ->label('Tax %')
