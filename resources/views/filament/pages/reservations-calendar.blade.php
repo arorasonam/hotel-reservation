@@ -1586,6 +1586,20 @@
                     }
                 };
 
+                // Bind Group Check-in
+                groupCheckInBtn.onclick = async () => {
+                    if (confirm("Check-in all rooms for this reservation?")) {
+                        const res = await lwCall('updateReservationStatus', b.id, 'checked_in');
+                        if (res.success) window.location.reload();
+                    }
+                };
+
+                // Bind Partial Check-in
+                checkInRoomBtn.onclick = async () => {
+                    const res = await lwCall('updateRoomStatusInBooking', b.detail_id, 'checked_in');
+                    if (res.success) window.location.reload();
+                };
+
                 // Bind Partial Checkout
                 checkOutRoomBtn.onclick = async () => {
                     const res = await lwCall('updateRoomStatusInBooking', b.detail_id, 'checked_out');
