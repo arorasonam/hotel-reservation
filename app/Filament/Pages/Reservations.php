@@ -5,7 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Hotel;
 use App\Models\HotelRoom;
 use App\Models\Reservation;
-use App\Models\ReservationRoom;
+use App\Models\ReservationRoomDetail;
 use App\Models\RoomType;
 use BackedEnum;
 use Carbon\Carbon;
@@ -38,16 +38,17 @@ class Reservations extends Page
                 'code' => $type->code,
                 'label' => $type->name,
                 'totalRooms' => $type->rooms()->whereIn('status', ['clean', 'vacant'])->count(),
-                'rooms' => $type->rooms->map(fn($room) => [
+                'rooms' => $type->rooms->map(fn ($room) => [
                     'room_number' => (string) $room->room_number, // Cast to string for JS comparison
                     'status' => strtolower(trim($room->status ?? 'dirty')),
                 ])->toArray(),
             ];
         });
+
         // dd($this->loadReservations());
         return [
-            'hotels' => Hotel::all()->map(fn($h) => ['id' => $h->id, 'name' => $h->name])->toArray(),
-            'roomTypes' => RoomType::all()->map(fn($t) => ['id' => $t->id, 'code' => $t->code, 'name' => $t->name])->toArray(),
+            'hotels' => Hotel::all()->map(fn ($h) => ['id' => $h->id, 'name' => $h->name])->toArray(),
+            'roomTypes' => RoomType::all()->map(fn ($t) => ['id' => $t->id, 'code' => $t->code, 'name' => $t->name])->toArray(),
             'groupedRooms' => $groupedRooms,
             'totalVacant' => $this->countVacantRooms(),
             'reservations' => $this->loadReservations(),
@@ -93,27 +94,27 @@ class Reservations extends Page
             ->get()
             ->flatMap(function ($res) {
                 $primary = $res->reservationGuests->where('is_primary', true)->first() ?? $res->reservationGuests->first();
-                $checkIn = \Carbon\Carbon::parse($res->check_in)->format('Y-m-d');
-                $checkOut = \Carbon\Carbon::parse($res->check_out)->format('Y-m-d');
-                $nights = \Carbon\Carbon::parse($checkIn)->diffInDays(\Carbon\Carbon::parse($checkOut)) ?: 1;
+                $checkIn = Carbon::parse($res->check_in)->format('Y-m-d');
+                $checkOut = Carbon::parse($res->check_out)->format('Y-m-d');
+                $nights = Carbon::parse($checkIn)->diffInDays(Carbon::parse($checkOut)) ?: 1;
 
                 return $res->roomCategories->flatMap(function ($category) use ($res, $primary, $nights, $checkIn, $checkOut) {
                     return $category->roomDetails->map(function ($detail) use ($res, $primary, $category, $nights, $checkIn, $checkOut) {
                         return [
-                            'id'             => $res->id,
-                            'detail_id'      => $detail->id,
+                            'id' => $res->id,
+                            'detail_id' => $detail->id,
                             'reservation_id' => $res->reservation_number,
-                            'room_no'        => trim((string) $detail->room_number),
-                            'room_type'      => $category->roomType?->name,
-                            'meal_plan'      => $category->mealPlan?->name ?? 'EP', // Added meal plan
-                            'first_name'     => $primary?->first_name ?? 'Guest',
-                            'last_name'      => $primary?->last_name ?? '',
-                            'check_in'       => $checkIn,
-                            'check_out'      => $checkOut,
-                            'nights'         => $nights,
-                            'status'         => $detail->status ?? $res->status,
-                            'booking_type'   => $this->mapBookingType($res->status),
-                            'room_type_id'   => $category->room_type_id,
+                            'room_no' => trim((string) $detail->room_number),
+                            'room_type' => $category->roomType?->name,
+                            'meal_plan' => $category->mealPlan?->name ?? 'EP', // Added meal plan
+                            'first_name' => $primary?->first_name ?? 'Guest',
+                            'last_name' => $primary?->last_name ?? '',
+                            'check_in' => $checkIn,
+                            'check_out' => $checkOut,
+                            'nights' => $nights,
+                            'status' => $detail->status ?? $res->status,
+                            'booking_type' => $this->mapBookingType($res->status),
+                            'room_type_id' => $category->room_type_id,
                         ];
                     });
                 });
@@ -151,7 +152,7 @@ class Reservations extends Page
         $allowed = ['clean', 'dirty', 'mnt', 'ooo', 'complaint', 'sanitised', 'vip', 'inspect', 'discrepancy'];
 
         if (! in_array($status, $allowed)) {
-            return ['success' => false, 'message' => 'Invalid status value: ' . $status];
+            return ['success' => false, 'message' => 'Invalid status value: '.$status];
         }
 
         $roomCols = Schema::getColumnListing((new HotelRoom)->getTable());
@@ -182,9 +183,12 @@ class Reservations extends Page
     public function updateRoomStatusInBooking(int $roomStayId, string $status): array
     {
         try {
-            // Updated to use the new Model
-            $roomDetail = \App\Models\ReservationRoomDetail::find($roomStayId);
-            if (!$roomDetail) return ['success' => false, 'message' => 'Room detail not found'];
+            $roomDetail = ReservationRoomDetail::with('category.reservation.roomCategories.roomDetails')
+                ->find($roomStayId);
+
+            if (! $roomDetail) {
+                return ['success' => false, 'message' => 'Room detail not found'];
+            }
 
             // 1. Update the individual room detail status
             $roomDetail->update(['status' => $status]);
@@ -193,6 +197,10 @@ class Reservations extends Page
             if ($roomDetail->room_number && $roomDetail->room_number !== 'Auto') {
                 $physicalStatus = ($status === 'checked_in') ? 'occupied' : 'dirty';
                 HotelRoom::where('room_number', $roomDetail->room_number)->update(['status' => $physicalStatus]);
+            }
+
+            if ($roomDetail->category?->reservation) {
+                $this->syncParentStatus($roomDetail->category->reservation);
             }
 
             return ['success' => true];
@@ -304,12 +312,12 @@ class Reservations extends Page
 
     private function getHotels(): array
     {
-        return Hotel::all()->map(fn($h) => ['id' => $h->id, 'name' => $h->name])->toArray();
+        return Hotel::all()->map(fn ($h) => ['id' => $h->id, 'name' => $h->name])->toArray();
     }
 
     private function getRoomTypes(): array
     {
-        return RoomType::all()->map(fn($t) => [
+        return RoomType::all()->map(fn ($t) => [
             'id' => $t->id,
             'code' => $t->code,
             'name' => $t->name,
@@ -319,17 +327,19 @@ class Reservations extends Page
     public function updateReservationStatus(int $id, string $status): array
     {
         $reservation = Reservation::with('roomCategories.roomDetails')->find($id);
-        if (!$reservation) return ['success' => false, 'message' => 'Not found'];
+        if (! $reservation) {
+            return ['success' => false, 'message' => 'Not found'];
+        }
 
         // Update parent
         $reservation->update(['status' => $status]);
 
         // Determine physical room state
         $physicalStatus = match ($status) {
-            'checked_in'  => 'occupied',
+            'checked_in' => 'occupied',
             'checked_out' => 'dirty', // Mark dirty for housekeeping
-            'cancelled'   => 'vacant',
-            default       => 'vacant',
+            'cancelled' => 'vacant',
+            default => 'vacant',
         };
 
         foreach ($reservation->roomCategories as $cat) {
@@ -340,6 +350,30 @@ class Reservations extends Page
                 }
             }
         }
+
         return ['success' => true];
+    }
+
+    private function syncParentStatus(Reservation $reservation): void
+    {
+        $details = ReservationRoomDetail::whereIn(
+            'category_id',
+            $reservation->roomCategories()->pluck('id')
+        )->get();
+
+        $total = $details->count();
+
+        if ($total === 0) {
+            return;
+        }
+
+        $checkedIn = $details->where('status', 'checked_in')->count();
+        $checkedOut = $details->where('status', 'checked_out')->count();
+
+        if ($checkedOut === $total) {
+            $reservation->update(['status' => 'checked_out']);
+        } elseif ($checkedIn + $checkedOut === $total) {
+            $reservation->update(['status' => 'checked_in']);
+        }
     }
 }

@@ -53,8 +53,6 @@ class HotelResource extends Resource
         }
 
         return $query->where('hotel_group_id', $user->hotel_group_id);
-
-        return $query->whereRaw('1 = 0');                          // no access
     }
 
     public static function form(Schema $schema): Schema
