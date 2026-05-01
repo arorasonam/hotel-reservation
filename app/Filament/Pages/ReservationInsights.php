@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Reservation;
 use App\Models\ReservationRoomCategory;
 use BackedEnum;
+use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\DB;
 use UnitEnum;
@@ -51,13 +52,9 @@ class ReservationInsights extends Page
     // ─── Period switcher ──────────────────────────────────────────
     public function setPeriod(string $period): void
     {
-        $this->period = $period;
-        [$this->dateFrom, $this->dateTo] = match ($period) {
-            'day' => [now()->toDateString(), now()->toDateString()],
-            'week' => [now()->startOfWeek()->toDateString(), now()->endOfWeek()->toDateString()],
-            'month' => [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()],
-            default => [$this->dateFrom, $this->dateTo],
-        };
+        if (in_array($period, ['day', 'week', 'month'], true)) {
+            $this->period = $period;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -75,27 +72,28 @@ class ReservationInsights extends Page
             ->whereBetween('reservations.check_in', [$this->dateFrom, $this->dateTo])
             ->whereNotIn('reservations.status', ['cancelled', 'no_show'])
             ->select(
-                DB::raw('DATE(reservations.check_in) as date'),
+                'reservations.check_in',
                 DB::raw("COALESCE(booking_sources.name, 'Direct') as source"),
-                DB::raw('SUM(reservations.total_amount) as revenue')
+                'reservations.total_amount'
             )
-            // FIX: Use the actual table column name here
-            ->groupBy(DB::raw('DATE(reservations.check_in)'), DB::raw("COALESCE(booking_sources.name, 'Direct')"))
-            ->orderBy('date')
+            ->orderBy('reservations.check_in')
             ->get();
 
-        // Build a sorted unique list of dates
-        $dates = $rows->pluck('date')->unique()->sort()->values();
+        $groupedRows = $rows
+            ->groupBy(fn ($row) => $this->periodLabel($row->check_in))
+            ->map(fn ($periodRows) => $periodRows
+                ->groupBy('source')
+                ->map(fn ($sourceRows) => (float) $sourceRows->sum('total_amount')));
+
+        $dates = $groupedRows->keys()->values();
         $sources = $rows->pluck('source')->unique()->values();
 
         $colors = ['#12a8d8', '#ff7f00', '#39e80b', '#9b7b62', '#9e9e9e', '#2b9bea', '#625bd3', '#f45b83', '#d95cec', '#20d983'];
 
-        $datasets = $sources->map(function ($source, $i) use ($rows, $dates, $colors) {
-            $dataMap = $rows->where('source', $source)->pluck('revenue', 'date');
-
+        $datasets = $sources->map(function ($source, $i) use ($groupedRows, $dates, $colors) {
             return [
                 'label' => $source,
-                'data' => $dates->map(fn ($d) => round((float) ($dataMap[$d] ?? 0), 2))->values()->all(),
+                'data' => $dates->map(fn ($date) => round((float) ($groupedRows[$date][$source] ?? 0), 2))->values()->all(),
                 'borderColor' => $colors[$i % count($colors)],
                 'backgroundColor' => $colors[$i % count($colors)],
                 'tension' => 0.18,
@@ -153,22 +151,23 @@ class ReservationInsights extends Page
             ->whereBetween('reservations.check_in', [$this->dateFrom, $this->dateTo])
             ->whereNotIn('reservations.status', ['cancelled', 'no_show'])
             ->select(
-                DB::raw('EXTRACT(DOW FROM reservations.check_in)::int as dow'),
+                'reservations.check_in',
                 DB::raw("COALESCE(booking_sources.name, 'Direct') as source"),
-                DB::raw('SUM(reservations.total_amount) as revenue')
+                'reservations.total_amount'
             )
-            // FIX: Use the actual table column and raw expression here
-            ->groupBy(DB::raw('EXTRACT(DOW FROM reservations.check_in)::int'), DB::raw("COALESCE(booking_sources.name, 'Direct')"))
             ->get();
 
         $sources = $rows->pluck('source')->unique()->values();
+        $groupedRows = $rows
+            ->groupBy(fn ($row) => $this->weekdayIndex($row->check_in))
+            ->map(fn ($dayRows) => $dayRows
+                ->groupBy('source')
+                ->map(fn ($sourceRows) => (float) $sourceRows->sum('total_amount')));
 
-        $datasets = $sources->map(function ($source, $i) use ($rows, $colors) {
-            $byDow = $rows->where('source', $source)->pluck('revenue', 'dow');
-
+        $datasets = $sources->map(function ($source, $i) use ($groupedRows, $colors) {
             return [
                 'label' => $source,
-                'data' => collect(range(0, 6))->map(fn ($d) => round((float) ($byDow[$d] ?? 0), 2))->values()->all(),
+                'data' => collect(range(0, 6))->map(fn ($day) => round((float) ($groupedRows[$day][$source] ?? 0), 2))->values()->all(),
                 'backgroundColor' => $colors[$i % count($colors)],
             ];
         })->values()->all();
@@ -344,20 +343,25 @@ class ReservationInsights extends Page
             ->whereBetween('reservations.check_in', [$this->dateFrom, $this->dateTo])
             ->whereNotIn('reservations.status', ['cancelled', 'no_show'])
             ->select(
-                DB::raw('DATE(reservations.check_in) as date'),
+                'reservations.check_in',
                 DB::raw("COALESCE(booking_sources.name, 'Direct') as source"),
-                DB::raw('COUNT(*) as nights')
+                'reservations.rooms_count'
             )
-            ->groupBy(DB::raw('DATE(reservations.check_in)'), DB::raw("COALESCE(booking_sources.name, 'Direct')"))
-            ->orderBy('date')
+            ->orderBy('reservations.check_in')
             ->get();
 
-        $dates = $rows->pluck('date')->unique()->sort()->values();
+        $groupedRows = $rows
+            ->groupBy(fn ($row) => $this->periodLabel($row->check_in))
+            ->map(fn ($periodRows) => $periodRows
+                ->groupBy('source')
+                ->map(fn ($sourceRows) => (int) $sourceRows->sum(fn ($row) => (int) ($row->rooms_count ?: 1))));
+
+        $dates = $groupedRows->keys()->values();
         $sources = $rows->pluck('source')->unique()->values();
         $colors = ['#ff7f00', '#39e80b', '#9b7b62', '#9e9e9e', '#2b9bea', '#625bd3', '#f45b83', '#d95cec', '#20d983'];
 
         // TOTAL dataset
-        $totals = $rows->groupBy('date')->map(fn ($g) => round($g->sum('nights') / $totalRooms * 100, 2));
+        $totals = $groupedRows->map(fn ($sourceRows) => round($sourceRows->sum() / $totalRooms * 100, 2));
 
         $datasets = [];
         $datasets[] = [
@@ -370,10 +374,9 @@ class ReservationInsights extends Page
         ];
 
         foreach ($sources as $i => $source) {
-            $byDate = $rows->where('source', $source)->pluck('nights', 'date');
             $datasets[] = [
                 'label' => $source,
-                'data' => $dates->map(fn ($d) => round((float) ($byDate[$d] ?? 0) / $totalRooms * 100, 2))->values()->all(),
+                'data' => $dates->map(fn ($date) => round((float) ($groupedRows[$date][$source] ?? 0) / $totalRooms * 100, 2))->values()->all(),
                 'borderColor' => $colors[$i % count($colors)],
                 'backgroundColor' => $colors[$i % count($colors)],
                 'tension' => 0.18,
@@ -425,21 +428,23 @@ class ReservationInsights extends Page
             ->whereBetween('reservations.check_in', [$this->dateFrom, $this->dateTo])
             ->whereNotIn('reservations.status', ['cancelled', 'no_show'])
             ->select(
-                DB::raw('EXTRACT(DOW FROM reservations.check_in)::int as dow'),
+                'reservations.check_in',
                 DB::raw("COALESCE(booking_sources.name, 'Direct') as source"),
-                DB::raw('COUNT(*) as cnt')
+                'reservations.rooms_count'
             )
-            ->groupBy(DB::raw('EXTRACT(DOW FROM reservations.check_in)::int'), DB::raw("COALESCE(booking_sources.name, 'Direct')"))
             ->get();
 
         $sources = $rows->pluck('source')->unique()->values();
+        $groupedRows = $rows
+            ->groupBy(fn ($row) => $this->weekdayIndex($row->check_in))
+            ->map(fn ($dayRows) => $dayRows
+                ->groupBy('source')
+                ->map(fn ($sourceRows) => (int) $sourceRows->sum(fn ($row) => (int) ($row->rooms_count ?: 1))));
 
-        $datasets = $sources->map(function ($source, $i) use ($rows, $colors, $totalRooms) {
-            $byDow = $rows->where('source', $source)->pluck('cnt', 'dow');
-
+        $datasets = $sources->map(function ($source, $i) use ($groupedRows, $colors, $totalRooms) {
             return [
                 'label' => $source,
-                'data' => collect(range(0, 6))->map(fn ($d) => round((float) ($byDow[$d] ?? 0) / $totalRooms * 100, 2))->values()->all(),
+                'data' => collect(range(0, 6))->map(fn ($day) => round((float) ($groupedRows[$day][$source] ?? 0) / $totalRooms * 100, 2))->values()->all(),
                 'backgroundColor' => $colors[$i % count($colors)],
             ];
         })->values()->all();
@@ -539,8 +544,12 @@ class ReservationInsights extends Page
         $occupancy = round($roomNights / $totalRooms * 100, 2);
         $arr = $roomNights > 0 ? round($revenue / $roomNights, 2) : 0;
         $preDays = $base->clone()
-            ->selectRaw('AVG(EXTRACT(EPOCH FROM (created_at::timestamp - check_in::timestamp)) / 86400) as avg_days')
-            ->value('avg_days');
+            ->get(['created_at', 'check_in'])
+            ->map(fn (Reservation $reservation) => $reservation->created_at && $reservation->check_in
+                ? $reservation->created_at->diffInDays($reservation->check_in, false)
+                : null)
+            ->filter(fn (?float $days) => $days !== null)
+            ->avg();
 
         return [
             'revenue' => number_format($revenue, 2),
@@ -548,5 +557,21 @@ class ReservationInsights extends Page
             'arr' => number_format($arr, 2),
             'pre_booking' => round(abs($preDays ?? 0), 2).' days',
         ];
+    }
+
+    private function periodLabel(mixed $date): string
+    {
+        $date = Carbon::parse($date);
+
+        return match ($this->period) {
+            'week' => 'Week '.$date->isoWeek().' '.$date->format('Y'),
+            'month' => $date->format('M Y'),
+            default => $date->format('j M'),
+        };
+    }
+
+    private function weekdayIndex(mixed $date): int
+    {
+        return (int) Carbon::parse($date)->dayOfWeek;
     }
 }

@@ -545,6 +545,36 @@
         </main>
     </div>
 
+    <div
+        wire:key="reservation-insights-chart-runner-{{ $activeTab }}-{{ $period }}-{{ md5(json_encode([$trend, $channelMix, $weekdays, $categoryMix, $mealPlan, $marketSegmentation])) }}"
+        x-data
+        x-init="
+            let attempts = 0;
+            const payload = @js([
+                'isRevenue' => $isRevenue,
+                'trend' => $trend,
+                'channelMix' => $channelMix,
+                'weekdays' => $weekdays,
+                'split' => $isRevenue ? $split : null,
+                'ratePlan' => $isRevenue ? $ratePlan : null,
+                'categoryMix' => $categoryMix,
+                'mealPlan' => $mealPlan,
+                'marketSegmentation' => $marketSegmentation,
+            ]);
+            const draw = () => {
+                attempts++;
+                if (window.renderReservationInsightsCharts) {
+                    window.renderReservationInsightsCharts(payload);
+                    return;
+                }
+                if (attempts < 40) {
+                    window.setTimeout(draw, 100);
+                }
+            };
+            $nextTick(draw);
+        "
+    ></div>
+
     @once
     @push('scripts')
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -555,7 +585,7 @@
     <script>
         (function() {
             const palette = ['#12a8d8', '#ff7f00', '#39e80b', '#9b7b62', '#9e9e9e', '#2b9bea', '#625bd3', '#f45b83', '#d95cec', '#20d983', '#e0d647'];
-            const chartData = {
+            const initialChartData = {
                 isRevenue: @json($isRevenue),
                 trend: @json($trend),
                 channelMix: @json($channelMix),
@@ -857,9 +887,9 @@
                 };
             }
 
-            function initReservationInsights() {
+            window.renderReservationInsightsCharts = function(chartData) {
                 if (!window.Chart) {
-                    window.setTimeout(initReservationInsights, 120);
+                    window.setTimeout(() => window.renderReservationInsightsCharts(chartData), 120);
                     return;
                 }
 
@@ -930,11 +960,11 @@
                     ];
                     chart('insightUtilisationChart', 'line', utilisation, commonLineOptions('Occupancy (%)', 125));
                 }
-            }
+            };
 
-            initReservationInsights();
-            document.addEventListener('livewire:navigated', initReservationInsights);
-            document.addEventListener('livewire:updated', initReservationInsights);
+            window.renderReservationInsightsCharts(initialChartData);
+            document.addEventListener('livewire:navigated', () => window.renderReservationInsightsCharts(initialChartData));
+            document.addEventListener('livewire:updated', () => window.renderReservationInsightsCharts(initialChartData));
         })();
     </script>
     @endpush
