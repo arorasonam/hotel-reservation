@@ -1,25 +1,28 @@
 <?php
-// ─────────────────────────────────────────────────────────────
-// app/Filament/Pages/Reports/OutletRevenueReport.php
-// ─────────────────────────────────────────────────────────────
+
 namespace App\Filament\Pages\Reports;
 
 use App\Exports\OutletRevenueExport;
 use App\Models\PosOrder;
-use Filament\Forms\Components\DatePicker;
-use UnitEnum;
 use BackedEnum;
+use Filament\Forms\Components\DatePicker;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
+use UnitEnum;
 
 class OutletRevenueReport extends BaseReportPage
 {
-    protected static BackedEnum|string|null $navigationIcon  = 'heroicon-o-building-storefront';
-    protected static UnitEnum|string|null $navigationGroup = 'POS Reports';
-    protected static ?string $navigationLabel = 'Revenue by Outlet';
-    protected static ?int    $navigationSort  = 2;
-    protected string  $view            = 'filament.pages.reports.outlet-revenue';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-building-storefront';
 
-    public function schema(Schema $schema): Schema
+    protected static UnitEnum|string|null $navigationGroup = 'POS Reports';
+
+    protected static ?string $navigationLabel = 'Revenue by Outlet';
+
+    protected static ?int $navigationSort = 2;
+
+    protected string $view = 'filament.pages.reports.outlet-revenue';
+
+    public function form(Schema $schema): Schema
     {
         return $schema->components([
             DatePicker::make('date_from')->label('From')->default(now()->startOfMonth()),
@@ -31,45 +34,53 @@ class OutletRevenueReport extends BaseReportPage
     {
         [$from, $to] = $this->dateRange();
 
-        $totals = PosOrder::whereBetween('settled_at', [$from, $to])
+        $totals = PosOrder::query()
+            ->whereBetween('settled_at', [$from, $to])
             ->whereIn('status', ['paid', 'confirmed'])
-            ->selectRaw('SUM(grand_total) as revenue, COUNT(*) as orders')
+            ->selectRaw('SUM(grand_total) as revenue, SUM(base_amount) as base_revenue, COUNT(*) as orders')
             ->first();
 
-        $topOutlet = $this->getTableData()->sortByDesc('revenue')->first();
+        $topOutlet = $this->getTableData()->sortByDesc('base_revenue')->first();
 
         return [
-            ['label' => 'Total Revenue',  'value' => '₹' . number_format($totals->revenue, 2)],
-            ['label' => 'Total Orders',   'value' => number_format($totals->orders)],
-            ['label' => 'Best Outlet',    'value' => $topOutlet?->outlet_name ?? '—'],
-            ['label' => 'Outlets Active', 'value' => $this->getTableData()->count()],
+            ['label' => 'Original Revenue', 'value' => number_format((float) $totals->revenue, 2)],
+            ['label' => 'Base Revenue', 'value' => number_format((float) $totals->base_revenue, 2)],
+            ['label' => 'Total Orders', 'value' => number_format((float) $totals->orders)],
+            ['label' => 'Best Outlet', 'value' => $topOutlet?->outlet_name ?? '-'],
         ];
     }
 
-    public function getTableData(): \Illuminate\Support\Collection
+    public function getTableData(): Collection
     {
         [$from, $to] = $this->dateRange();
 
-        return PosOrder::whereBetween('settled_at', [$from, $to])
+        return PosOrder::query()
+            ->whereBetween('settled_at', [$from, $to])
             ->whereIn('pos_orders.status', ['paid', 'confirmed'])
             ->join('pos_outlets', 'pos_orders.pos_outlet_id', '=', 'pos_outlets.id')
             ->selectRaw('
                 pos_outlets.name as outlet_name,
+                pos_orders.currency_code,
+                pos_orders.base_currency_code,
                 COUNT(pos_orders.id) as total_orders,
                 SUM(pos_orders.subtotal) as subtotal,
                 SUM(pos_orders.tax_amount) as tax,
                 SUM(pos_orders.discount_amount) as discount,
-                SUM(pos_orders.grand_total) as revenue
+                SUM(pos_orders.grand_total) as revenue,
+                SUM(pos_orders.base_amount) as base_revenue
             ')
-            ->groupBy('pos_outlets.id', 'pos_outlets.name')
-            ->orderByDesc('revenue')
+            ->groupBy('pos_outlets.id', 'pos_outlets.name', 'pos_orders.currency_code', 'pos_orders.base_currency_code')
+            ->orderByDesc('base_revenue')
             ->get();
     }
 
     public function getTableColumns(): array
     {
-        return ['Outlet', 'Orders', 'Subtotal', 'Tax', 'Discount', 'Revenue'];
+        return ['Outlet', 'Currency', 'Orders', 'Subtotal', 'Tax', 'Discount', 'Revenue', 'Base Revenue'];
     }
 
-    public function getExportClass(): string { return OutletRevenueExport::class; }
+    public function getExportClass(): string
+    {
+        return OutletRevenueExport::class;
+    }
 }

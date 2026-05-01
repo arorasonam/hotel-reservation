@@ -20,6 +20,8 @@ class ReservationRoom extends Model
         'check_in',
         'check_out',
         'rate',
+        'currency_code',
+        'exchange_rate',
         'nights',
         'adults',
         'children',
@@ -35,6 +37,7 @@ class ReservationRoom extends Model
             'check_in' => 'date',
             'check_out' => 'date',
             'rate' => 'decimal:2',
+            'exchange_rate' => 'decimal:8',
             'checked_in_at' => 'datetime',
             'checked_out_at' => 'datetime',
         ];
@@ -53,6 +56,11 @@ class ReservationRoom extends Model
     public function mealPlan(): BelongsTo
     {
         return $this->belongsTo(MealPlan::class, 'meal_plan_id');
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
     public function folios(): HasMany

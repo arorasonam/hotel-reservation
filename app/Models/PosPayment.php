@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Services\ReservationFolioService;
+use App\Support\CurrencyDefaults;
+use App\Support\MoneyConverter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -15,6 +17,10 @@ class PosPayment extends Model
         'reservation_room_detail_id',
         'payment_method',
         'amount',
+        'currency_code',
+        'exchange_rate',
+        'base_currency_code',
+        'base_amount',
         'transaction_reference',
         'paid_at',
         'received_by',
@@ -24,6 +30,8 @@ class PosPayment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'exchange_rate' => 'decimal:8',
+            'base_amount' => 'decimal:2',
             'paid_at' => 'datetime',
         ];
     }
@@ -48,8 +56,22 @@ class PosPayment extends Model
         return $this->belongsTo(ReservationRoomDetail::class);
     }
 
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_code', 'code');
+    }
+
     protected static function booted(): void
     {
+        static::saving(function (PosPayment $payment): void {
+            $order = $payment->order;
+
+            $payment->currency_code ??= $order?->currency_code ?? CurrencyDefaults::defaultCode();
+            $payment->exchange_rate ??= $order?->exchange_rate ?? CurrencyDefaults::defaultExchangeRate();
+            $payment->base_currency_code ??= $order?->base_currency_code ?? MoneyConverter::baseCurrencyForHotel($order?->hotel_id);
+            $payment->base_amount = MoneyConverter::toBase($payment->amount, $payment->exchange_rate);
+        });
+
         static::saved(function (PosPayment $payment): void {
             $payment->syncFolio();
         });

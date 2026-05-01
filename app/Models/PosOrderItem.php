@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\CurrencyDefaults;
+use App\Support\MoneyConverter;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PosOrderItem extends Model
 {
@@ -18,12 +21,18 @@ class PosOrderItem extends Model
         'tax_percentage',
         'subtotal',
         'total',
+        'currency_code',
+        'exchange_rate',
+        'base_currency_code',
+        'base_amount',
     ];
 
     protected function casts(): array
     {
         return [
             'tax_ids' => 'array',
+            'exchange_rate' => 'decimal:8',
+            'base_amount' => 'decimal:2',
         ];
     }
 
@@ -35,6 +44,11 @@ class PosOrderItem extends Model
     public function item()
     {
         return $this->belongsTo(PosItem::class, 'pos_item_id');
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
     public function getTaxBreakdownAttribute(): array
@@ -59,6 +73,15 @@ class PosOrderItem extends Model
 
     protected static function booted()
     {
+        static::saving(function (PosOrderItem $item): void {
+            $order = $item->order;
+
+            $item->currency_code ??= $order?->currency_code ?? CurrencyDefaults::defaultCode();
+            $item->exchange_rate ??= $order?->exchange_rate ?? CurrencyDefaults::defaultExchangeRate();
+            $item->base_currency_code ??= $order?->base_currency_code ?? MoneyConverter::baseCurrencyForHotel($order?->hotel_id);
+            $item->base_amount = MoneyConverter::toBase($item->total, $item->exchange_rate);
+        });
+
         // static::creating(function ($item) {
         //     $item->total = $item->quantity * $item->price;
         // });

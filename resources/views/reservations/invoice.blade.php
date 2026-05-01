@@ -99,6 +99,9 @@
         $guestName = $primaryGuest
             ? trim($primaryGuest->first_name . ' ' . $primaryGuest->last_name)
             : trim(($reservation->first_name ?? '') . ' ' . ($reservation->last_name ?? ''));
+        $currencyCode = $reservation->currency_code ?: 'INR';
+        $baseCurrencyCode = $reservation->hotel?->base_currency_code ?: $currencyCode;
+        $money = fn ($amount, $code = null) => ($code ?: $currencyCode) . ' ' . number_format((float) $amount, 2);
 
         $roomSections = collect();
         $masterEntries = $folioScope === 'room'
@@ -152,7 +155,7 @@
                     @if($room->category?->mealPlan)
                         | {{ $room->category->mealPlan->name }}
                     @endif
-                    | Balance {{ number_format($debits - $credits, 2) }}
+                    | Balance {{ $money($debits - $credits) }}
                 </p>
             </div>
 
@@ -169,7 +172,7 @@
         <div class="folio-section">
             <div class="folio-heading">
                 <h3>Master Folio</h3>
-                <p>Reservation-level entries | Balance {{ number_format($debits - $credits, 2) }}</p>
+                <p>Reservation-level entries | Balance {{ $money($debits - $credits) }}</p>
             </div>
 
             @include('reservations.partials.folio-entries', ['entries' => $masterEntries])
@@ -199,16 +202,22 @@
     <table class="summary-table summary">
         <tr>
             <td>Total Debits</td>
-            <td>{{ number_format($summary['debits'], 2) }}</td>
+            <td>{{ $money($summary['debits']) }}</td>
         </tr>
         <tr>
             <td>Total Credits</td>
-            <td>{{ number_format($summary['credits'], 2) }}</td>
+            <td>{{ $money($summary['credits']) }}</td>
         </tr>
         <tr>
             <td>Balance</td>
-            <td>{{ number_format($summary['balance'], 2) }}</td>
+            <td>{{ $money($summary['balance']) }}</td>
         </tr>
+        @if($baseCurrencyCode !== $currencyCode)
+            <tr>
+                <td>Base Balance</td>
+                <td>{{ $money($summary['base_balance'] ?? 0, $baseCurrencyCode) }}</td>
+            </tr>
+        @endif
     </table>
 </body>
 </html>

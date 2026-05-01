@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PosOrders\RelationManagers;
 
 use App\Filament\Resources\PosOrders\PosOrderResource;
+use App\Support\CurrencyDefaults;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -42,6 +43,8 @@ class PaymentsRelationManager extends RelationManager
                         $data['reservation_id'] = $this->getOwnerRecord()->reservation_id;
                         $data['reservation_room_id'] = $this->getOwnerRecord()->reservation_room_id;
                         $data['reservation_room_detail_id'] = $this->getOwnerRecord()->reservation_room_detail_id;
+                        $data['currency_code'] = $data['currency_code'] ?? $this->getOwnerRecord()->currency_code ?? CurrencyDefaults::defaultCode();
+                        $data['exchange_rate'] = $data['exchange_rate'] ?? $this->getOwnerRecord()->exchange_rate ?? CurrencyDefaults::defaultExchangeRate();
                         $data['received_by'] = Auth::id();
 
                         return $data;
@@ -67,9 +70,16 @@ class PaymentsRelationManager extends RelationManager
                 ->required(),
             TextInput::make('amount')
                 ->numeric()
+                ->prefix($this->getOwnerRecord()->currency_code ?? CurrencyDefaults::defaultCode())
                 ->default($balance)
                 ->minValue(0)
                 ->required(),
+            TextInput::make('exchange_rate')
+                ->label('Exchange Rate')
+                ->numeric()
+                ->default($this->getOwnerRecord()->exchange_rate ?? CurrencyDefaults::defaultExchangeRate())
+                ->required()
+                ->visible(fn (): bool => ($this->getOwnerRecord()->currency_code ?? CurrencyDefaults::defaultCode()) !== ($this->getOwnerRecord()->base_currency_code ?? CurrencyDefaults::defaultCode())),
             TextInput::make('transaction_reference')
                 ->label('Transaction Ref'),
             DateTimePicker::make('paid_at')

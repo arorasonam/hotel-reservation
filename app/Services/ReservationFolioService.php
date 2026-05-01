@@ -8,6 +8,8 @@ use App\Models\Reservation;
 use App\Models\ReservationFolio;
 use App\Models\ReservationRoom;
 use App\Models\ReservationRoomDetail;
+use App\Support\CurrencyDefaults;
+use App\Support\MoneyConverter;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -90,9 +92,9 @@ class ReservationFolioService
 
         $reservation = $order->reservation;
         $reservationRoomDetail = $order->reservationRoomDetail;
-        
+
         // if (! $reservation || ! $reservationRoomDetail || ! $reservationRoomDetail->isCheckedIn() || $order->status === 'draft') {
-         if (! $reservation || ! $reservationRoomDetail || $order->status === 'draft') {
+        if (! $reservation || ! $reservationRoomDetail || $order->status === 'draft') {
             $this->deleteEntriesForSource('pos_order', $order->id);
 
             return;
@@ -166,7 +168,6 @@ class ReservationFolioService
 
             $order->refresh();
         }
-dd($order);
         $this->syncPosOrderCharges($order);
 
         if (! $order->reservation_id || ! $order->reservation_room_detail_id || $payment->payment_method === 'room_posting') {
@@ -198,6 +199,10 @@ dd($order);
             reference: $payment->transaction_reference ?: $order->order_number,
             notes: ucfirst((string) $payment->payment_method),
             reservationRoomDetail: $reservationRoomDetail,
+            currencyCode: $payment->currency_code,
+            exchangeRate: $payment->exchange_rate,
+            baseCurrencyCode: $payment->base_currency_code,
+            baseAmount: $payment->base_amount,
         );
     }
 
@@ -255,10 +260,21 @@ dd($order);
             ->where('type', 'credit')
             ->sum('amount');
 
+        $baseDebits = (float) $entries
+            ->where('type', 'debit')
+            ->sum('base_amount');
+
+        $baseCredits = (float) $entries
+            ->where('type', 'credit')
+            ->sum('base_amount');
+
         return [
             'debits' => round($debits, 2),
             'credits' => round($credits, 2),
             'balance' => round($debits - $credits, 2),
+            'base_debits' => round($baseDebits, 2),
+            'base_credits' => round($baseCredits, 2),
+            'base_balance' => round($baseDebits - $baseCredits, 2),
         ];
     }
 
@@ -293,6 +309,10 @@ dd($order);
             postedAt: $postedAt,
             reference: $reference,
             reservationRoomDetail: $reservationRoomDetail,
+            currencyCode: $order->currency_code,
+            exchangeRate: $order->exchange_rate,
+            baseCurrencyCode: $order->base_currency_code,
+            baseAmount: MoneyConverter::toBase($amount, $order->exchange_rate),
         );
     }
 
@@ -310,7 +330,16 @@ dd($order);
         ?string $reference = null,
         ?string $notes = null,
         ?ReservationRoomDetail $reservationRoomDetail = null,
+        ?string $currencyCode = null,
+        null|float|string $exchangeRate = null,
+        ?string $baseCurrencyCode = null,
+        null|float|string $baseAmount = null,
     ): ReservationFolio {
+        $resolvedExchangeRate = $exchangeRate
+            ?? $reservationRoom?->exchange_rate
+            ?? $reservation->exchange_rate
+            ?? CurrencyDefaults::defaultExchangeRate();
+
         return ReservationFolio::query()->updateOrCreate(
             [
                 'source' => $source,
@@ -325,6 +354,14 @@ dd($order);
                 'reference' => $reference,
                 'notes' => $notes,
                 'amount' => round($amount, 2),
+                'currency_code' => $currencyCode
+                    ?? $reservationRoom?->currency_code
+                    ?? $reservation->currency_code
+                    ?? CurrencyDefaults::defaultCode(),
+                'exchange_rate' => $resolvedExchangeRate,
+                'base_currency_code' => $baseCurrencyCode
+                    ?? MoneyConverter::baseCurrencyForHotel($reservation->hotel_id),
+                'base_amount' => $baseAmount ?? MoneyConverter::toBase($amount, $resolvedExchangeRate),
                 'type' => $type,
                 'entry_type' => $entryType,
                 'posted_at' => $postedAt,

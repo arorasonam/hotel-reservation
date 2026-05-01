@@ -33,6 +33,7 @@ th, td{
 <body>
 
 @php
+    $money = fn ($amount, $currencyCode = null) => ($currencyCode ?: $order->currency_code ?: 'INR').' '.number_format((float) $amount, 2);
     $taxSummary = collect();
 
     foreach ($order->items as $lineItem) {
@@ -101,16 +102,16 @@ Room:
 <tr style="text-align:center">
 <td>{{ $item->item->name }}</td>
 <td>{{ $item->quantity }}</td>
-<td>{{ $item->price }}</td>
+<td>{{ $money($item->price, $item->currency_code) }}</td>
 <td>
 @forelse($item->tax_breakdown as $tax)
-{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}% (Rs. {{ number_format($tax['amount'], 2) }})<br>
+{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}% ({{ $money($tax['amount'], $item->currency_code) }})<br>
 @empty
 0%
 @endforelse
 </td>
-<td>{{ $item->tax_amount }}</td>
-<td>{{ $item->total }}</td>
+<td>{{ $money($item->tax_amount, $item->currency_code) }}</td>
+<td>{{ $money($item->total, $item->currency_code) }}</td>
 </tr>
 
 @endforeach
@@ -121,22 +122,27 @@ Room:
 
 <hr>
 
-<p>Subtotal: Rs. {{ $order->subtotal }}</p>
+<p>Subtotal: {{ $money($order->subtotal) }}</p>
 
 @if($order->tax_amount)
 @foreach($taxSummary as $tax)
-<p>{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}%: Rs. {{ number_format($tax['amount'], 2) }}</p>
+<p>{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}%: {{ $money($tax['amount']) }}</p>
 @endforeach
-<p>Tax Total: Rs. {{ $order->tax_amount }}</p>
+<p>Tax Total: {{ $money($order->tax_amount) }}</p>
 @endif
 
 @if($order->discount_amount)
-<p>Discount: Rs.  {{ $order->discount_amount }}</p>
+<p>Discount: {{ $money($order->discount_amount) }}</p>
 @endif
 
 <p class="total">
-Grand Total: Rs. {{ $order->grand_total }}
+Grand Total: {{ $money($order->grand_total) }}
 </p>
+
+@if($order->base_currency_code && $order->base_currency_code !== $order->currency_code)
+<p>Base Total: {{ $money($order->base_amount, $order->base_currency_code) }}</p>
+<p>Exchange Rate: 1 {{ $order->currency_code }} = {{ number_format((float) $order->exchange_rate, 8) }} {{ $order->base_currency_code }}</p>
+@endif
 
 <hr>
 
@@ -146,7 +152,10 @@ Grand Total: Rs. {{ $order->grand_total }}
 <p>
 {{ ucfirst($payment->payment_method) }}
 :
-Rs. {{ $payment->amount }}
+{{ $money($payment->amount, $payment->currency_code) }}
+@if($payment->base_currency_code && $payment->base_currency_code !== $payment->currency_code)
+({{ $money($payment->base_amount, $payment->base_currency_code) }})
+@endif
 </p>
 @empty
 <p>No payments recorded.</p>

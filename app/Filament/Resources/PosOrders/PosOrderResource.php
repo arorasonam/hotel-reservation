@@ -15,6 +15,8 @@ use App\Models\Reservation;
 use App\Models\ReservationRoomDetail;
 use App\Models\Tax;
 use App\Services\ReservationFolioService;
+use App\Support\CurrencyDefaults;
+use App\Support\MoneyConverter;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -99,6 +101,8 @@ class PosOrderResource extends Resource
 
                         if ($outlet) {
                             $set('hotel_id', $outlet->hotel_id);
+                            $set('currency_code', CurrencyDefaults::codeForHotel($outlet->hotel_id));
+                            $set('exchange_rate', CurrencyDefaults::defaultExchangeRate());
                         }
                     })
                     ->afterStateHydrated(function ($state, $set): void {
@@ -110,9 +114,23 @@ class PosOrderResource extends Resource
 
                         if ($outlet) {
                             $set('hotel_id', $outlet->hotel_id);
+                            $set('currency_code', CurrencyDefaults::codeForHotel($outlet->hotel_id));
+                            $set('exchange_rate', CurrencyDefaults::defaultExchangeRate());
                         }
                     })
                     ->required(),
+                Select::make('currency_code')
+                    ->label('Currency')
+                    ->options(fn (): array => CurrencyDefaults::options())
+                    ->default(fn ($get): string => CurrencyDefaults::codeForHotel($get('hotel_id')))
+                    ->required()
+                    ->native(false),
+                TextInput::make('exchange_rate')
+                    ->label('Exchange Rate')
+                    ->numeric()
+                    ->default(CurrencyDefaults::defaultExchangeRate())
+                    ->required()
+                    ->visible(fn ($get): bool => ($get('currency_code') ?: CurrencyDefaults::defaultCode()) !== MoneyConverter::baseCurrencyForHotel($get('hotel_id'))),
                 Select::make('order_type')
                     ->options([
                         'room_charge' => 'Room Charge',
@@ -296,6 +314,8 @@ class PosOrderResource extends Resource
                                 $set('tax_id', $taxData['tax_id']);
                                 $set('tax_ids', $taxData['tax_ids']);
                                 $set('price', $price);
+                                $set('currency_code', $item->currency_code ?? CurrencyDefaults::defaultCode());
+                                $set('exchange_rate', $item->exchange_rate ?? CurrencyDefaults::defaultExchangeRate());
                                 $set('tax_percentage', $taxPercent);
                                 $set('subtotal', $subtotal);
                                 $set('tax_amount', $taxAmount);
@@ -325,6 +345,8 @@ class PosOrderResource extends Resource
                                 $set('tax_id', $taxData['tax_id']);
                                 $set('tax_ids', $taxData['tax_ids']);
                                 $set('price', $price);
+                                $set('currency_code', $item->currency_code ?? CurrencyDefaults::defaultCode());
+                                $set('exchange_rate', $item->exchange_rate ?? CurrencyDefaults::defaultExchangeRate());
                                 $set('tax_percentage', $taxPercent);
                                 $set('subtotal', $subtotal);
                                 $set('tax_amount', $taxAmount);
@@ -349,8 +371,13 @@ class PosOrderResource extends Resource
                             ->required(),
                         TextInput::make('price')
                             ->numeric()
+                            ->prefix(fn ($get): string => $get('currency_code') ?: CurrencyDefaults::defaultCode())
                             ->required()
                             ->disabled()
+                            ->dehydrated(true),
+                        Hidden::make('currency_code')
+                            ->dehydrated(true),
+                        Hidden::make('exchange_rate')
                             ->dehydrated(true),
                         Placeholder::make('applied_tax')
                             ->label('Applied Tax')
@@ -375,27 +402,8 @@ class PosOrderResource extends Resource
                             ->disabled()
                             ->dehydrated(true),
                     ])
-                    ->mutateRelationshipDataBeforeSaveUsing(function (array $data): array {
-
-                        $price = $data['price'] ?? 0;
-                        $qty = $data['quantity'] ?? 1;
-
-                        $taxes = Tax::query()
-                            ->whereIn('id', $data['tax_ids'] ?? array_filter([$data['tax_id'] ?? null]))
-                            ->get();
-                        $taxPercent = (float) $taxes->sum('percentage');
-
-                        $subtotal = $price * $qty;
-                        $taxAmount = ($subtotal * $taxPercent) / 100;
-
-                        $data['tax_percentage'] = $taxPercent;
-                        $data['tax_amount'] = $taxAmount;
-                        $data['tax_id'] = $taxes->first()?->id;
-                        $data['tax_ids'] = $taxes->pluck('id')->values()->all();
-                        $data['total'] = $subtotal + $taxAmount;
-
-                        return $data;
-                    })
+                    ->mutateRelationshipDataBeforeCreateUsing(fn (array $data, $livewire): array => self::normalizeOrderItemData($data, $livewire))
+                    ->mutateRelationshipDataBeforeSaveUsing(fn (array $data, $livewire): array => self::normalizeOrderItemData($data, $livewire))
                     ->columns(8)
                     ->required(),
             ]);
@@ -575,6 +583,32 @@ class PosOrderResource extends Resource
             'tax_ids' => $taxes->pluck('id')->values()->all(),
             'percentage' => (float) $taxes->sum('percentage'),
         ];
+    }
+
+    private static function normalizeOrderItemData(array $data, $livewire): array
+    {
+        $price = $data['price'] ?? 0;
+        $qty = $data['quantity'] ?? 1;
+        $orderCurrencyCode = data_get($livewire->data, 'currency_code') ?: CurrencyDefaults::defaultCode();
+        $orderExchangeRate = data_get($livewire->data, 'exchange_rate') ?: CurrencyDefaults::defaultExchangeRate();
+
+        $taxes = Tax::query()
+            ->whereIn('id', $data['tax_ids'] ?? array_filter([$data['tax_id'] ?? null]))
+            ->get();
+        $taxPercent = (float) $taxes->sum('percentage');
+
+        $subtotal = $price * $qty;
+        $taxAmount = ($subtotal * $taxPercent) / 100;
+
+        $data['tax_percentage'] = $taxPercent;
+        $data['tax_amount'] = $taxAmount;
+        $data['tax_id'] = $taxes->first()?->id;
+        $data['tax_ids'] = $taxes->pluck('id')->values()->all();
+        $data['total'] = $subtotal + $taxAmount;
+        $data['currency_code'] = $data['currency_code'] ?? $orderCurrencyCode;
+        $data['exchange_rate'] = $data['exchange_rate'] ?? $orderExchangeRate;
+
+        return $data;
     }
 
     private static function formatTaxBreakdown(array $taxIds, float $subtotal = 0): string

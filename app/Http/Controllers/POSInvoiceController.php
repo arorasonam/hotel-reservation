@@ -10,6 +10,7 @@ class POSInvoiceController extends Controller
     public function print($id)
     {
         $order = PosOrder::with([
+            'hotel',
             'items.item',
             'payments',
             'guest',
@@ -23,6 +24,7 @@ class POSInvoiceController extends Controller
     public function download($id)
     {
         $order = PosOrder::with([
+            'hotel',
             'items.item',
             'payments',
             'guest',

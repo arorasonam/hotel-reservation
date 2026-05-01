@@ -66,4 +66,9 @@ abstract class BaseReportPage extends Page implements HasForms
             $filename
         );
     }
+
+    public function money(float|int|string|null $amount, ?string $currencyCode): string
+    {
+        return ($currencyCode ?: 'INR').' '.number_format((float) ($amount ?? 0), 2);
+    }
 }

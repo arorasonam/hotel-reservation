@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Services\ReservationFolioService;
+use App\Support\CurrencyDefaults;
+use App\Support\MoneyConverter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,6 +27,10 @@ class PosOrder extends Model
         'tax_amount',
         'discount_amount',
         'grand_total',
+        'currency_code',
+        'exchange_rate',
+        'base_currency_code',
+        'base_amount',
         'status',
         'settled_at',
         'created_by',
@@ -34,6 +40,8 @@ class PosOrder extends Model
     {
         return [
             'settled_at' => 'datetime',
+            'exchange_rate' => 'decimal:8',
+            'base_amount' => 'decimal:2',
         ];
     }
 
@@ -83,6 +91,14 @@ class PosOrder extends Model
             if (! $order->created_by) {
                 $order->created_by = Auth::id();
             }
+
+            $order->currency_code ??= CurrencyDefaults::codeForHotel($order->hotel_id);
+            $order->exchange_rate ??= CurrencyDefaults::defaultExchangeRate();
+        });
+
+        static::saving(function (PosOrder $order): void {
+            $order->base_currency_code ??= MoneyConverter::baseCurrencyForHotel($order->hotel_id);
+            $order->base_amount = MoneyConverter::toBase($order->grand_total, $order->exchange_rate);
         });
 
         static::deleted(function (PosOrder $order): void {
@@ -103,6 +119,7 @@ class PosOrder extends Model
             'subtotal' => $subtotal,
             'tax_amount' => $taxAmount,
             'grand_total' => $grandTotal,
+            'base_amount' => MoneyConverter::toBase($grandTotal, $this->exchange_rate),
         ]);
 
         $this->refreshSettlementStatus();
@@ -111,6 +128,11 @@ class PosOrder extends Model
     public function hotel(): BelongsTo
     {
         return $this->belongsTo(Hotel::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
     public function refreshSettlementStatus(): void

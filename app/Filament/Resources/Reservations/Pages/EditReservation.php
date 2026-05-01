@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Reservations\Pages;
 
 use App\Filament\Resources\Reservations\ReservationResource;
+use App\Models\ReservationRoomDetail;
+use App\Support\CurrencyDefaults;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
@@ -19,6 +21,9 @@ class EditReservation extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $data['currency_code'] = $data['currency_code'] ?? CurrencyDefaults::codeForHotel($data['hotel_id'] ?? null);
+        $data['exchange_rate'] = $data['exchange_rate'] ?? CurrencyDefaults::defaultExchangeRate();
+
         // Intercept the nested array so it doesn't cause "Array to string" errors on save
         $this->temporary_room_data = $data['roomCategories'] ?? [];
         unset($data['roomCategories']);
@@ -41,7 +46,7 @@ class EditReservation extends EditRecord
                 [
                     'room_type_id' => $categoryData['room_type_id'],
                     'meal_plan_id' => $categoryData['meal_plan_id'],
-                    'rooms_count'  => $categoryData['rooms_count'],
+                    'rooms_count' => $categoryData['rooms_count'],
                 ]
             );
 
@@ -54,11 +59,11 @@ class EditReservation extends EditRecord
                         ['id' => $roomDetail['id'] ?? null],
                         [
                             'room_number' => $roomDetail['room_number'] ?? 'Auto',
-                            'adults'      => $roomDetail['adults'] ?? 2,
-                            'children'    => $roomDetail['children'] ?? 0,
-                            'infants'     => $roomDetail['infant'] ?? 0,
+                            'adults' => $roomDetail['adults'] ?? 2,
+                            'children' => $roomDetail['children'] ?? 0,
+                            'infants' => $roomDetail['infant'] ?? 0,
                             // Preserve the 'status' (checked_in/confirmed) during edit
-                            'status'      => $roomDetail['status'] ?? 'confirmed',
+                            'status' => $roomDetail['status'] ?? 'confirmed',
                         ]
                     );
                     $activeDetailIds[] = $detail->id;
@@ -68,7 +73,7 @@ class EditReservation extends EditRecord
 
         // 3. Cleanup: Remove data that was deleted from the UI
         // First, delete details belonging to active categories that weren't in the form
-        \App\Models\ReservationRoomDetail::whereIn('category_id', $activeCategoryIds)
+        ReservationRoomDetail::whereIn('category_id', $activeCategoryIds)
             ->whereNotIn('id', $activeDetailIds)
             ->delete();
 

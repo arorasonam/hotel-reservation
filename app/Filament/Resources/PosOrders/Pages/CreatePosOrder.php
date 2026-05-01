@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PosOrders\Pages;
 
 use App\Filament\Resources\PosOrders\PosOrderResource;
 use App\Services\ReservationFolioService;
+use App\Support\CurrencyDefaults;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreatePosOrder extends CreateRecord
@@ -32,6 +33,8 @@ class CreatePosOrder extends CreateRecord
         $data['tax_amount'] = $taxAmount;
         $data['grand_total'] = $grandTotal;
         $data['created_by'] = auth()->id();
+        $data['currency_code'] = $data['currency_code'] ?? CurrencyDefaults::codeForHotel($data['hotel_id'] ?? null);
+        $data['exchange_rate'] = $data['exchange_rate'] ?? CurrencyDefaults::defaultExchangeRate();
 
         return $data;
     }

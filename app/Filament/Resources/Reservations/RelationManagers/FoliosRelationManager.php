@@ -4,6 +4,8 @@ namespace App\Filament\Resources\Reservations\RelationManagers;
 
 use App\Models\ReservationFolio;
 use App\Models\ReservationRoomDetail;
+use App\Support\CurrencyDefaults;
+use App\Support\MoneyConverter;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\DateTimePicker;
@@ -21,7 +23,7 @@ class FoliosRelationManager extends RelationManager
     protected static string $relationship = 'folios';
 
     protected static ?string $title = 'Folio';
-    
+
     public function table(Table $table): Table
     {
         return $table
@@ -218,8 +220,15 @@ class FoliosRelationManager extends RelationManager
                     ->maxLength(255),
                 TextInput::make('amount')
                     ->numeric()
+                    ->prefix($this->getOwnerRecord()->currency_code ?? CurrencyDefaults::defaultCode())
                     ->minValue(0.01)
                     ->required(),
+                TextInput::make('exchange_rate')
+                    ->label('Exchange Rate')
+                    ->numeric()
+                    ->default($this->getOwnerRecord()->exchange_rate ?? CurrencyDefaults::defaultExchangeRate())
+                    ->required()
+                    ->visible(fn (): bool => ($this->getOwnerRecord()->currency_code ?? CurrencyDefaults::defaultCode()) !== ($this->getOwnerRecord()->hotel?->base_currency_code ?? CurrencyDefaults::defaultCode())),
                 DateTimePicker::make('posted_at')
                     ->default(now())
                     ->required(),
@@ -236,6 +245,13 @@ class FoliosRelationManager extends RelationManager
                     'reference' => $data['reference'] ?? null,
                     'notes' => $data['notes'] ?? null,
                     'amount' => $data['amount'],
+                    'currency_code' => $this->getOwnerRecord()->currency_code ?? CurrencyDefaults::defaultCode(),
+                    'exchange_rate' => $data['exchange_rate'] ?? $this->getOwnerRecord()->exchange_rate ?? CurrencyDefaults::defaultExchangeRate(),
+                    'base_currency_code' => MoneyConverter::baseCurrencyForHotel($this->getOwnerRecord()->hotel_id),
+                    'base_amount' => MoneyConverter::toBase(
+                        $data['amount'],
+                        $data['exchange_rate'] ?? $this->getOwnerRecord()->exchange_rate ?? CurrencyDefaults::defaultExchangeRate(),
+                    ),
                     'type' => $type,
                     'entry_type' => $entryType,
                     'posted_at' => $data['posted_at'],

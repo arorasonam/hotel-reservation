@@ -33,6 +33,8 @@ class Reservation extends Model
         'breakfast',
         'type',
         'rate_plan',
+        'currency_code',
+        'exchange_rate',
     ];
 
     protected function casts(): array
@@ -41,6 +43,7 @@ class Reservation extends Model
             'check_in' => 'date',
             'check_out' => 'date',
             'rate' => 'decimal:2',
+            'exchange_rate' => 'decimal:8',
         ];
     }
 
@@ -51,28 +54,28 @@ class Reservation extends Model
                 // 1. Get the Hotel Prefix (e.g., THE)
                 $hotelPrefix = 'RES';
                 if ($reservation->hotel_id) {
-                    $hotel = \App\Models\Hotel::find($reservation->hotel_id);
+                    $hotel = Hotel::find($reservation->hotel_id);
                     $hotelPrefix = $hotel ? strtoupper(substr($hotel->name, 0, 3)) : 'RES';
                 }
 
                 /** * 2. Robust ID Generation
-                 * Instead of count(), we look for the highest existing number to avoid 
+                 * Instead of count(), we look for the highest existing number to avoid
                  * duplicate IDs if a previous reservation was deleted.
                  */
-                $lastReservation = self::where('reservation_number', 'like', $hotelPrefix . '_%')
+                $lastReservation = self::where('reservation_number', 'like', $hotelPrefix.'_%')
                     ->orderBy('reservation_number', 'desc')
                     ->first();
 
                 if ($lastReservation) {
                     // Extract number from "THE_0000005" -> 5
-                    $lastNumber = (int) str_replace($hotelPrefix . '_', '', $lastReservation->reservation_number);
+                    $lastNumber = (int) str_replace($hotelPrefix.'_', '', $lastReservation->reservation_number);
                     $nextId = $lastNumber + 1;
                 } else {
                     $nextId = 1;
                 }
 
                 // 3. Generate the formatted string: THE_0000001
-                $reservation->reservation_number = $hotelPrefix . '_' . str_pad($nextId, 7, '0', STR_PAD_LEFT);
+                $reservation->reservation_number = $hotelPrefix.'_'.str_pad($nextId, 7, '0', STR_PAD_LEFT);
             }
         });
 
@@ -108,9 +111,19 @@ class Reservation extends Model
         return $this->hasMany(ReservationGuest::class);
     }
 
+    public function reservationRooms(): HasMany
+    {
+        return $this->hasMany(ReservationRoom::class);
+    }
+
     public function hotel(): BelongsTo
     {
         return $this->belongsTo(Hotel::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
     public function room_requirements()

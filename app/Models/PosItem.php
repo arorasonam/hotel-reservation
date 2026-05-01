@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PosItem extends Model
 {
@@ -11,9 +12,18 @@ class PosItem extends Model
         'pos_category_id',
         'name',
         'price',
+        'currency_code',
+        'exchange_rate',
         'tax_amount',
         'status',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'exchange_rate' => 'decimal:8',
+        ];
+    }
 
     public function outlet()
     {
@@ -23,5 +33,10 @@ class PosItem extends Model
     public function category()
     {
         return $this->belongsTo(PosCategory::class, 'pos_category_id');
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 }

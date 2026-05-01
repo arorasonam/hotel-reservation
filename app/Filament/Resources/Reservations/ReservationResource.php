@@ -16,6 +16,8 @@ use App\Models\MealPlan;
 use App\Models\Reservation;
 use App\Models\ReservationRoomDetail;
 use App\Models\RoomType;
+use App\Support\CurrencyDefaults;
+use App\Support\MoneyConverter;
 use BackedEnum;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -130,9 +132,29 @@ class ReservationResource extends Resource
                                                 })
                                                 ->required()
                                                 ->live()
+                                                ->afterStateUpdated(function ($state, $set): void {
+                                                    $set('currency_code', CurrencyDefaults::codeForHotel($state));
+                                                    $set('exchange_rate', CurrencyDefaults::defaultExchangeRate());
+                                                })
                                                 ->searchable()
                                                 ->native(false)
                                                 ->columnSpanFull(),
+                                        ]),
+                                        Grid::make(2)->schema([
+                                            Select::make('currency_code')
+                                                ->label('Currency')
+                                                ->options(fn (): array => CurrencyDefaults::options())
+                                                ->default(fn ($get): string => CurrencyDefaults::codeForHotel($get('hotel_id')))
+                                                ->required()
+                                                ->native(false)
+                                                ->inlineLabel(),
+                                            TextInput::make('exchange_rate')
+                                                ->label('Exchange Rate')
+                                                ->numeric()
+                                                ->default(CurrencyDefaults::defaultExchangeRate())
+                                                ->required()
+                                                ->inlineLabel()
+                                                ->visible(fn ($get): bool => ($get('currency_code') ?: CurrencyDefaults::defaultCode()) !== MoneyConverter::baseCurrencyForHotel($get('hotel_id'))),
                                         ]),
                                         Grid::make(2)->schema([
                                             Select::make('booking_source_id')
@@ -200,7 +222,6 @@ class ReservationResource extends Resource
 
                                             Checkbox::make('pay_at_hotel')->label('Pay At Hotel'),
                                             Checkbox::make('is_igst_applied')->label('Is IGST Applied'),
-
 
                                         ]),
                                         Grid::make(2)->schema([
@@ -520,10 +541,10 @@ class ReservationResource extends Resource
                             ->schema([
                                 Section::make('Bill Summary')
                                     ->schema([
-                                        TextInput::make('base_price')->label('Room Charges')->numeric()->prefix('₹')->live(onBlur: true)
+                                        TextInput::make('base_price')->label('Room Charges')->numeric()->prefix(fn ($get): string => $get('currency_code') ?: CurrencyDefaults::defaultCode())->live(onBlur: true)
                                             ->afterStateUpdated(fn ($set, $get) => self::calculateTotal($set, $get)),
 
-                                        TextInput::make('tax_amount')->label('Taxes')->numeric()->prefix('₹')->default(0)->live(onBlur: true)
+                                        TextInput::make('tax_amount')->label('Taxes')->numeric()->prefix(fn ($get): string => $get('currency_code') ?: CurrencyDefaults::defaultCode())->default(0)->live(onBlur: true)
                                             ->afterStateUpdated(fn ($set, $get) => self::calculateTotal($set, $get)),
 
                                         Placeholder::make('total_display')
@@ -532,18 +553,18 @@ class ReservationResource extends Resource
                                                 <div class="pt-4 border-t mt-4 text-right">
                                                     <div class="flex justify-between text-lg font-bold">
                                                         <span>Net Payable</span>
-                                                        <span class="text-primary-600">₹'.number_format((float) ($get('total_amount') ?? 0), 2).'</span>
+                                                        <span class="text-primary-600">'.($get('currency_code') ?: CurrencyDefaults::defaultCode()).' '.number_format((float) ($get('total_amount') ?? 0), 2).'</span>
                                                     </div>
                                                 </div>
                                             ')),
                                         Placeholder::make('bill_details')
                                             ->label('')
-                                            ->content(fn($record) => view('filament.components.bill-summary-display', [
+                                            ->content(fn ($record) => view('filament.components.bill-summary-display', [
                                                 'record' => $record,
                                             ]))
                                             ->columnSpanFull(),
                                     ])
-                                    ->columnSpan(['lg' => 1]) // Sidebars like your screenshot
+                                    ->columnSpan(['lg' => 1]), // Sidebars like your screenshot
 
                             ]),
                     ]),

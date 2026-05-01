@@ -18,6 +18,10 @@ class ReservationFolio extends Model
         'reference',
         'notes',
         'amount',
+        'currency_code',
+        'exchange_rate',
+        'base_currency_code',
+        'base_amount',
         'type',
         'entry_type',
         'posted_at',
@@ -27,6 +31,8 @@ class ReservationFolio extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'exchange_rate' => 'decimal:8',
+            'base_amount' => 'decimal:2',
             'posted_at' => 'datetime',
         ];
     }
@@ -44,6 +50,11 @@ class ReservationFolio extends Model
     public function reservationRoomDetail(): BelongsTo
     {
         return $this->belongsTo(ReservationRoomDetail::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_code', 'code');
     }
 
     public function getSignedAmountAttribute(): float

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Reservations\Pages;
 
 use App\Filament\Resources\Reservations\ReservationResource;
 use App\Services\ReservationFolioService;
+use App\Support\CurrencyDefaults;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateReservation extends CreateRecord
@@ -22,6 +23,9 @@ class CreateReservation extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $data['currency_code'] = $data['currency_code'] ?? CurrencyDefaults::codeForHotel($data['hotel_id'] ?? null);
+        $data['exchange_rate'] = $data['exchange_rate'] ?? CurrencyDefaults::defaultExchangeRate();
+
         // 1. Pull the raw repeater data out of the main data array
         $this->temporary_room_data = $data['roomCategories'] ?? [];
 
@@ -39,19 +43,21 @@ class CreateReservation extends CreateRecord
         $folioService = app(ReservationFolioService::class);
 
         $folioService->deleteEntry('reservation', $reservation->id, 'stay_charge');
-        
+
         // 3. Loop through categories (e.g., Arena DBL, Garden Dbl)
         foreach ($this->temporary_room_data as $category) {
 
             // 4. Loop through each specific room requirement in that category
-            foreach ($category['requirements'] as $roomDetail) {
+            foreach ($category['requirements'] ?? [] as $roomDetail) {
                 $reservationRoom = $reservation->reservationRooms()->create([
-                     'room_type_id' => $category['room_type_id'],
+                    'room_type_id' => $category['room_type_id'],
                     'meal_plan_id' => $category['meal_plan_id'],
                     'room_number' => $roomDetail['room_number'] ?? 'Auto',
                     'check_in' => $reservation->check_in,
                     'check_out' => $reservation->check_out,
                     'rate' => $reservation->rate ?? 0,
+                    'currency_code' => $reservation->currency_code,
+                    'exchange_rate' => $reservation->exchange_rate,
                     'nights' => $reservation->nights ?? 1,
                     'adults' => $roomDetail['adults'] ?? 2,
                     'children' => $roomDetail['children'] ?? 0,
@@ -62,13 +68,13 @@ class CreateReservation extends CreateRecord
                 $folioService->syncReservationRoomStayCharge($reservationRoom);
             }
         }
-       
-        foreach ($formState['roomCategories'] as $categoryData) {
+
+        foreach ($formState['roomCategories'] ?? [] as $categoryData) {
             // 1. Create the Category Summary
             $category = $reservation->roomCategories()->create([
                 'room_type_id' => $categoryData['room_type_id'],
                 'meal_plan_id' => $categoryData['meal_plan_id'],
-                'rooms_count'  => $categoryData['rooms_count'],
+                'rooms_count' => $categoryData['rooms_count'],
             ]);
 
             // 2. Create individual Detail records based on the nested "Requirements" repeater
@@ -76,10 +82,10 @@ class CreateReservation extends CreateRecord
                 foreach ($categoryData['roomDetails'] as $roomDetail) {
                     $category->roomDetails()->create([
                         'room_number' => $roomDetail['room_number'] ?? 'Auto',
-                        'adults'      => $roomDetail['adults'] ?? 2,
-                        'children'    => $roomDetail['children'] ?? 0,
-                        'infants'     => $roomDetail['infant'] ?? 0,
-                        'status'      => 'confirmed',
+                        'adults' => $roomDetail['adults'] ?? 2,
+                        'children' => $roomDetail['children'] ?? 0,
+                        'infants' => $roomDetail['infant'] ?? 0,
+                        'status' => 'confirmed',
                     ]);
                 }
             }

@@ -10,6 +10,7 @@ use App\Helpers\HotelContext;
 use App\Models\PosCategory;
 use App\Models\PosItem;
 use App\Models\PosOutlet;
+use App\Support\CurrencyDefaults;
 use BackedEnum;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -77,7 +78,27 @@ class PosItemResource extends Resource
                     ->dehydrated(true)
                     ->preload()
                     ->live()
+                    ->afterStateUpdated(function ($state, $set): void {
+                        $outlet = PosOutlet::find($state);
+
+                        $set('currency_code', CurrencyDefaults::codeForHotel($outlet?->hotel_id));
+                        $set('exchange_rate', CurrencyDefaults::defaultExchangeRate());
+                    })
                     ->required(),
+                Select::make('currency_code')
+                    ->label('Currency')
+                    ->options(fn (): array => CurrencyDefaults::options())
+                    ->default(function ($get): string {
+                        $outlet = PosOutlet::find($get('pos_outlet_id'));
+
+                        return CurrencyDefaults::codeForHotel($outlet?->hotel_id);
+                    })
+                    ->required()
+                    ->native(false),
+                TextInput::make('exchange_rate')
+                    ->default(CurrencyDefaults::defaultExchangeRate())
+                    ->hidden()
+                    ->dehydrated(true),
                 Select::make('pos_category_id')
                     ->relationship('category', 'name')
                     ->options(function ($livewire) {
@@ -98,6 +119,7 @@ class PosItemResource extends Resource
                     ->required(),
                 TextInput::make('price')
                     ->numeric()
+                    ->prefix(fn ($get): string => $get('currency_code') ?: CurrencyDefaults::defaultCode())
                     ->required(),
                 Toggle::make('status')
                     ->default(true),
