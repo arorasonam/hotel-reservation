@@ -224,14 +224,10 @@ class ReservationResource extends Resource
                                                     ->dehydrated(false)
                                                     ->afterStateUpdated(function ($state, $set, $get) {
                                                         if ($state) {
-                                                            // Get all repeater items
                                                             $items = $get('../../roomCategories') ?? [];
-
-                                                            // Grab the first item in the list
                                                             $firstItem = $items[array_key_first($items)] ?? null;
 
                                                             if ($firstItem) {
-                                                                // Sync all fields from the first item to this item
                                                                 $set('room_type_id', $firstItem['room_type_id'] ?? null);
                                                                 $set('meal_plan_id', $firstItem['meal_plan_id'] ?? null);
                                                                 $set('rooms_count', $firstItem['rooms_count'] ?? 1);
@@ -241,8 +237,27 @@ class ReservationResource extends Resource
                                                             }
                                                         }
                                                     })
-                                                    // Hide the toggle on the very first item since there is nothing "above" it
-                                                    ->hidden(fn($get) => array_key_first($get('../../roomCategories') ?? []) === $get('uuid')),
+                                                    /** * REFINED HIDING LOGIC:
+                                                     * We use the $statePath to identify the item's index.
+                                                     * In Filament repeaters, the first item always ends in '.0' 
+                                                     * or matches the first key of the state array.
+                                                     */
+                                                    ->hidden(function ($get) {
+                                                        $items = $get('../../roomCategories') ?? [];
+
+                                                        // If no items exist or only one, hide it by default
+                                                        if (count($items) <= 1) {
+                                                            return true;
+                                                        }
+
+                                                        $keys = array_keys($items);
+                                                        $firstKey = $keys[0] ?? null;
+
+                                                        /** * We compare the current row's entire state ($get('../')) 
+                                                         * against the state stored at the very first key of the repeater.
+                                                         */
+                                                        return $get('../') === ($items[$firstKey] ?? null);
+                                                    }),
 
                                                 Grid::make(3)->schema([
                                                     Select::make('room_type_id')
@@ -252,9 +267,10 @@ class ReservationResource extends Resource
                                                         ->required()
                                                         ->afterStateUpdated(function ($state, $set, $get) {
                                                             if (!$state) return;
-
+                                                            $hotelId = $get('../../hotel_id');
                                                             // Fetch first room and first meal plan
                                                             $firstRoom = \App\Models\HotelRoom::where('room_type_id', $state)
+                                                                ->where('hotel_id', $hotelId)
                                                                 ->where('status', 'vacant')
                                                                 ->orderBy('room_number')
                                                                 ->value('room_number');
@@ -277,7 +293,7 @@ class ReservationResource extends Resource
                                                             $set('roomDetails', [[
                                                                 'adults' => 2,
                                                                 'children' => 0,
-                                                                'infant' => 0,
+                                                                'infants' => 0,
                                                                 'room_number' => $firstRoom ?? 'Auto',
                                                             ]]);
                                                         }),
@@ -319,8 +335,10 @@ class ReservationResource extends Resource
                                                             // If it's a new record and no details exist, create the first row
                                                             if (!$get('roomDetails')) {
                                                                 $roomTypeId = $get('room_type_id');
+                                                                $hotelId = $get('../../hotel_id');
                                                                 $firstRoom = $roomTypeId
                                                                     ? \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                    ->where('hotel_id', $hotelId)
                                                                     ->where('status', 'vacant')
                                                                     ->orderBy('room_number')
                                                                     ->value('room_number')
@@ -329,16 +347,17 @@ class ReservationResource extends Resource
                                                                 $set('roomDetails', [[
                                                                     'adults' => 2,
                                                                     'children' => 0,
-                                                                    'infant' => 0,
+                                                                    'infants' => 0,
                                                                     'room_number' => $firstRoom ?? 'Auto',
                                                                 ]]);
                                                             }
                                                         })
                                                         ->afterStateUpdated(function ($state, $set, $get) {
                                                             $roomTypeId = $get('room_type_id');
-
+                                                            $hotelId = $get('../../hotel_id');
                                                             $firstAvailableRoom = $roomTypeId
                                                                 ? \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                ->where('hotel_id', $hotelId)
                                                                 ->where('status', 'vacant')
                                                                 ->orderBy('room_number')
                                                                 ->value('room_number')
@@ -384,12 +403,21 @@ class ReservationResource extends Resource
 
                                                                     Select::make('room_number')
                                                                         ->label('Room No.')
+                                                                        ->distinct()
+                                                                        ->fixIndistinctState()
                                                                         ->options(function ($get) {
-                                                                            // Use the path to the parent Category
+                                                                            /** 
+                                                                             * Pathing Check:
+                                                                             * ../../room_type_id -> Up to the Category row
+                                                                             * ../../../hotel_id -> Up to the main form (Booking details)
+                                                                             */
                                                                             $roomTypeId = $get('../../room_type_id');
-                                                                            if (!$roomTypeId) return [];
+                                                                            $hotelId = $get('../../../hotel_id');
 
-                                                                            return HotelRoom::where('room_type_id', $roomTypeId)
+                                                                            if (!$roomTypeId || !$hotelId) return [];
+                                                                            return \App\Models\HotelRoom::query()
+                                                                                ->where('hotel_id', $hotelId)
+                                                                                ->where('room_type_id', $roomTypeId)
                                                                                 ->where('status', 'vacant')
                                                                                 ->pluck('room_number', 'room_number')
                                                                                 ->toArray();
@@ -397,15 +425,25 @@ class ReservationResource extends Resource
                                                                         ->live()
                                                                         ->required()
                                                                         ->native(false)
-                                                                        // This hook triggers when the OPTIONS for this field are updated
+                                                                        /** 
+                                                                         * THE FIX: afterStateHydrated only runs on load. 
+                                                                         * To auto-fill when a user ADDS a new room row, 
+                                                                         * use the afterStateUpdated of the PARENT room_type_id 
+                                                                         * or a default logic here.
+                                                                         */
                                                                         ->afterStateHydrated(function ($state, $set, $get) {
                                                                             if (!$state) {
                                                                                 $roomTypeId = $get('../../room_type_id');
-                                                                                if ($roomTypeId) {
-                                                                                    $firstRoom = \App\Models\HotelRoom::where('room_type_id', $roomTypeId)
+                                                                                $hotelId = $get('../../../hotel_id');
+
+                                                                                if ($roomTypeId && $hotelId) {
+                                                                                    $firstRoom = \App\Models\HotelRoom::where('hotel_id', $hotelId)
+                                                                                        ->where('room_type_id', $roomTypeId)
                                                                                         ->where('status', 'vacant')
+                                                                                        ->pluck('room_number', 'room_number')
                                                                                         ->orderBy('room_number')
                                                                                         ->value('room_number');
+
                                                                                     $set('room_number', $firstRoom);
                                                                                 }
                                                                             }
