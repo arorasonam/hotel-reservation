@@ -4,8 +4,10 @@ namespace App\Filament\Pages\Reports;
 
 use App\Exports\OutletRevenueExport;
 use App\Models\PosOrder;
+use App\Models\PosOutlet;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Collection;
 use UnitEnum;
@@ -27,26 +29,41 @@ class OutletRevenueReport extends BaseReportPage
         return $schema->components([
             DatePicker::make('date_from')->label('From')->default(now()->startOfMonth()),
             DatePicker::make('date_to')->label('To')->default(now()),
-        ])->columns(2);
+            Select::make('outlet_id')
+                ->label('Outlet')
+                ->placeholder('All Outlets')
+                ->options(PosOutlet::where('status', 1)->pluck('name', 'id'))
+                ->searchable(),
+        ])->columns(3);
     }
 
     public function getStats(): array
     {
         [$from, $to] = $this->dateRange();
 
-        $totals = PosOrder::query()
-            ->whereBetween('settled_at', [$from, $to])
+        $totalsQuery = PosOrder::where(function ($query) use ($from, $to): void {
+            $query->whereBetween('settled_at', [$from, $to])
+                ->orWhere(function ($query) use ($from, $to): void {
+                    $query->whereNull('settled_at')
+                        ->whereBetween('created_at', [$from, $to]);
+                });
+        })
             ->whereIn('status', ['paid', 'confirmed'])
-            ->selectRaw('SUM(grand_total) as revenue, SUM(base_amount) as base_revenue, COUNT(*) as orders')
-            ->first();
+            ->selectRaw('SUM(grand_total) as revenue, COUNT(*) as orders');
+
+        if ($this->outlet_id) {
+            $totalsQuery->where('pos_outlet_id', $this->outlet_id);
+        }
+
+        $totals = $totalsQuery->first();
 
         $topOutlet = $this->getTableData()->sortByDesc('base_revenue')->first();
 
         return [
-            ['label' => 'Original Revenue', 'value' => number_format((float) $totals->revenue, 2)],
-            ['label' => 'Base Revenue', 'value' => number_format((float) $totals->base_revenue, 2)],
-            ['label' => 'Total Orders', 'value' => number_format((float) $totals->orders)],
-            ['label' => 'Best Outlet', 'value' => $topOutlet?->outlet_name ?? '-'],
+            ['label' => 'Total Revenue',  'value' => '₹'.number_format($totals->revenue, 2)],
+            ['label' => 'Total Orders',   'value' => number_format($totals->orders)],
+            ['label' => 'Best Outlet',    'value' => $topOutlet?->outlet_name ?? '—'],
+            ['label' => 'Outlets Active', 'value' => $this->getTableData()->count()],
         ];
     }
 
@@ -54,8 +71,13 @@ class OutletRevenueReport extends BaseReportPage
     {
         [$from, $to] = $this->dateRange();
 
-        return PosOrder::query()
-            ->whereBetween('settled_at', [$from, $to])
+        $query = PosOrder::where(function ($query) use ($from, $to): void {
+            $query->whereBetween('pos_orders.settled_at', [$from, $to])
+                ->orWhere(function ($query) use ($from, $to): void {
+                    $query->whereNull('pos_orders.settled_at')
+                        ->whereBetween('pos_orders.created_at', [$from, $to]);
+                });
+        })
             ->whereIn('pos_orders.status', ['paid', 'confirmed'])
             ->join('pos_outlets', 'pos_orders.pos_outlet_id', '=', 'pos_outlets.id')
             ->selectRaw('
@@ -69,9 +91,14 @@ class OutletRevenueReport extends BaseReportPage
                 SUM(pos_orders.grand_total) as revenue,
                 SUM(pos_orders.base_amount) as base_revenue
             ')
-            ->groupBy('pos_outlets.id', 'pos_outlets.name', 'pos_orders.currency_code', 'pos_orders.base_currency_code')
-            ->orderByDesc('base_revenue')
-            ->get();
+            ->groupBy('pos_outlets.id', 'pos_outlets.name')
+            ->orderByDesc('revenue');
+
+        if ($this->outlet_id) {
+            $query->where('pos_orders.pos_outlet_id', $this->outlet_id);
+        }
+
+        return $query->get();
     }
 
     public function getTableColumns(): array
