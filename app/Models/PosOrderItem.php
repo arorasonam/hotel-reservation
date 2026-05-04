@@ -36,12 +36,12 @@ class PosOrderItem extends Model
         ];
     }
 
-    public function order()
+    public function order(): BelongsTo
     {
         return $this->belongsTo(PosOrder::class);
     }
 
-    public function item()
+    public function item(): BelongsTo
     {
         return $this->belongsTo(PosItem::class, 'pos_item_id');
     }
@@ -71,14 +71,14 @@ class PosOrderItem extends Model
             ->all();
     }
 
-    protected static function booted()
+    protected static function booted(): void
     {
         static::saving(function (PosOrderItem $item): void {
             $order = $item->order;
 
             $item->currency_code ??= $order?->currency_code ?? CurrencyDefaults::defaultCode();
-            $item->exchange_rate ??= $order?->exchange_rate ?? CurrencyDefaults::defaultExchangeRate();
             $item->base_currency_code ??= $order?->base_currency_code ?? MoneyConverter::baseCurrencyForHotel($order?->hotel_id);
+            $item->exchange_rate ??= $order?->exchange_rate ?? MoneyConverter::exchangeRateToBase($item->currency_code, $item->base_currency_code);
             $item->base_amount = MoneyConverter::toBase($item->total, $item->exchange_rate);
         });
 

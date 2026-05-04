@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Reservations\RelationManagers;
 
+use App\Support\CurrencyDefaults;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
@@ -26,9 +27,12 @@ class PosOrdersRelationManager extends RelationManager
                 TextColumn::make('table_no')
                     ->placeholder('N/A'),
                 TextColumn::make('grand_total')
-                    ->money('INR'),
+                    ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
+                TextColumn::make('base_amount')
+                    ->label('Base Total')
+                    ->formatStateUsing(fn ($state, $record): string => ($record->base_currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
                 TextColumn::make('tax_amount')
-                    ->money('INR'),
+                    ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
                 TextColumn::make('status'),
                 TextColumn::make('settled_at')
                     ->dateTime()

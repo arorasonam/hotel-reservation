@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Services\ReservationFolioService;
-use App\Support\CurrencyDefaults;
 use App\Support\MoneyConverter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -92,12 +91,15 @@ class PosOrder extends Model
                 $order->created_by = Auth::id();
             }
 
-            $order->currency_code ??= CurrencyDefaults::codeForHotel($order->hotel_id);
-            $order->exchange_rate ??= CurrencyDefaults::defaultExchangeRate();
+            $order->base_currency_code ??= MoneyConverter::baseCurrencyForHotel($order->hotel_id);
+            $order->currency_code ??= $order->base_currency_code;
+            $order->exchange_rate ??= MoneyConverter::exchangeRateToBase($order->currency_code, $order->base_currency_code);
         });
 
         static::saving(function (PosOrder $order): void {
             $order->base_currency_code ??= MoneyConverter::baseCurrencyForHotel($order->hotel_id);
+            $order->currency_code ??= $order->base_currency_code;
+            $order->exchange_rate ??= MoneyConverter::exchangeRateToBase($order->currency_code, $order->base_currency_code);
             $order->base_amount = MoneyConverter::toBase($order->grand_total, $order->exchange_rate);
         });
 

@@ -75,6 +75,10 @@ class PosOrderResource extends Resource
         return $schema
             ->components([
                 Hidden::make('hotel_id')->dehydrated(true),
+                Hidden::make('selected_currency_code')
+                    ->dehydrated(true),
+                Hidden::make('selected_exchange_rate')
+                    ->dehydrated(true),
                 TextInput::make('order_number')
                     ->default(fn () => 'POS-'.now()->format('YmdHisv'))
                     ->disabled()
@@ -96,16 +100,23 @@ class PosOrderResource extends Resource
 
                         return $query->orderBy('name')->pluck('name', 'id')->toArray();
                     })
-                    ->afterStateUpdated(function ($state, $set): void {
+                    ->afterStateUpdated(function ($state, $set, $get): void {
                         $outlet = PosOutlet::find($state);
 
                         if ($outlet) {
+                            $baseCurrencyCode = MoneyConverter::baseCurrencyForHotel($outlet->hotel_id);
+
                             $set('hotel_id', $outlet->hotel_id);
-                            $set('currency_code', CurrencyDefaults::codeForHotel($outlet->hotel_id));
-                            $set('exchange_rate', CurrencyDefaults::defaultExchangeRate());
+
+                            if (blank($get('currency_code'))) {
+                                $set('currency_code', $baseCurrencyCode);
+                                $set('selected_currency_code', $baseCurrencyCode);
+                                $set('exchange_rate', MoneyConverter::exchangeRateToBase($baseCurrencyCode, $baseCurrencyCode));
+                                $set('selected_exchange_rate', MoneyConverter::exchangeRateToBase($baseCurrencyCode, $baseCurrencyCode));
+                            }
                         }
                     })
-                    ->afterStateHydrated(function ($state, $set): void {
+                    ->afterStateHydrated(function ($state, $set, $get): void {
                         if (! $state) {
                             return;
                         }
@@ -113,9 +124,22 @@ class PosOrderResource extends Resource
                         $outlet = PosOutlet::find($state);
 
                         if ($outlet) {
+                            $baseCurrencyCode = MoneyConverter::baseCurrencyForHotel($outlet->hotel_id);
+
                             $set('hotel_id', $outlet->hotel_id);
-                            $set('currency_code', CurrencyDefaults::codeForHotel($outlet->hotel_id));
-                            $set('exchange_rate', CurrencyDefaults::defaultExchangeRate());
+
+                            if (blank($get('currency_code'))) {
+                                $set('currency_code', $baseCurrencyCode);
+                                $set('selected_currency_code', $baseCurrencyCode);
+                            }
+
+                            if (blank($get('exchange_rate'))) {
+                                $currencyCode = $get('currency_code') ?: $baseCurrencyCode;
+                                $exchangeRate = MoneyConverter::exchangeRateToBase($currencyCode, $baseCurrencyCode);
+
+                                $set('exchange_rate', $exchangeRate);
+                                $set('selected_exchange_rate', $exchangeRate);
+                            }
                         }
                     })
                     ->required(),
@@ -123,14 +147,21 @@ class PosOrderResource extends Resource
                     ->label('Currency')
                     ->options(fn (): array => CurrencyDefaults::options())
                     ->default(fn ($get): string => CurrencyDefaults::codeForHotel($get('hotel_id')))
+                    ->dehydrated(true)
+                    ->live()
+                    ->afterStateUpdated(function ($state, callable $get, callable $set): void {
+                        $baseCurrencyCode = MoneyConverter::baseCurrencyForHotel($get('hotel_id'));
+                        $exchangeRate = MoneyConverter::exchangeRateToBase($state, $baseCurrencyCode);
+
+                        $set('selected_currency_code', $state);
+                        $set('exchange_rate', $exchangeRate);
+                        $set('selected_exchange_rate', $exchangeRate);
+                    })
                     ->required()
                     ->native(false),
-                TextInput::make('exchange_rate')
-                    ->label('Exchange Rate')
-                    ->numeric()
+                Hidden::make('exchange_rate')
                     ->default(CurrencyDefaults::defaultExchangeRate())
-                    ->required()
-                    ->visible(fn ($get): bool => ($get('currency_code') ?: CurrencyDefaults::defaultCode()) !== MoneyConverter::baseCurrencyForHotel($get('hotel_id'))),
+                    ->dehydrated(true),
                 Select::make('order_type')
                     ->options([
                         'room_charge' => 'Room Charge',
@@ -303,8 +334,10 @@ class PosOrderResource extends Resource
                                 }
 
                                 $taxData = self::getItemTaxData($item);
-                                $price = $item->price;
                                 $qty = $get('quantity') ?? 1;
+                                $currencyCode = $get('../../selected_currency_code') ?: $get('../../currency_code') ?: CurrencyDefaults::defaultCode();
+                                $exchangeRate = $get('../../selected_exchange_rate') ?: $get('../../exchange_rate') ?: CurrencyDefaults::defaultExchangeRate();
+                                $price = self::convertItemPriceForOrder($item, $exchangeRate);
                                 $taxPercent = $taxData['percentage'];
 
                                 $subtotal = $price * $qty;
@@ -314,8 +347,8 @@ class PosOrderResource extends Resource
                                 $set('tax_id', $taxData['tax_id']);
                                 $set('tax_ids', $taxData['tax_ids']);
                                 $set('price', $price);
-                                $set('currency_code', $item->currency_code ?? CurrencyDefaults::defaultCode());
-                                $set('exchange_rate', $item->exchange_rate ?? CurrencyDefaults::defaultExchangeRate());
+                                $set('currency_code', $currencyCode);
+                                $set('exchange_rate', $exchangeRate);
                                 $set('tax_percentage', $taxPercent);
                                 $set('subtotal', $subtotal);
                                 $set('tax_amount', $taxAmount);
@@ -335,8 +368,10 @@ class PosOrderResource extends Resource
 
                                 $taxData = self::getItemTaxData($item);
                                 $taxPercent = $taxData['percentage'];
-                                $price = $item->price;
                                 $qty = $get('quantity') ?? 1;
+                                $currencyCode = $get('../../selected_currency_code') ?: $get('../../currency_code') ?: CurrencyDefaults::defaultCode();
+                                $exchangeRate = $get('../../selected_exchange_rate') ?: $get('../../exchange_rate') ?: CurrencyDefaults::defaultExchangeRate();
+                                $price = self::convertItemPriceForOrder($item, $exchangeRate);
 
                                 $subtotal = $price * $qty;
                                 $taxAmount = ($subtotal * $taxPercent) / 100;
@@ -345,8 +380,8 @@ class PosOrderResource extends Resource
                                 $set('tax_id', $taxData['tax_id']);
                                 $set('tax_ids', $taxData['tax_ids']);
                                 $set('price', $price);
-                                $set('currency_code', $item->currency_code ?? CurrencyDefaults::defaultCode());
-                                $set('exchange_rate', $item->exchange_rate ?? CurrencyDefaults::defaultExchangeRate());
+                                $set('currency_code', $currencyCode);
+                                $set('exchange_rate', $exchangeRate);
                                 $set('tax_percentage', $taxPercent);
                                 $set('subtotal', $subtotal);
                                 $set('tax_amount', $taxAmount);
@@ -383,7 +418,8 @@ class PosOrderResource extends Resource
                             ->label('Applied Tax')
                             ->content(fn ($get) => self::formatTaxBreakdown(
                                 $get('tax_ids') ?? array_filter([$get('tax_id')]),
-                                (float) ($get('subtotal') ?? 0)
+                                (float) ($get('subtotal') ?? 0),
+                                $get('currency_code') ?: CurrencyDefaults::defaultCode()
                             )),
                         TextInput::make('tax_percentage')
                             ->hidden()
@@ -427,13 +463,20 @@ class PosOrderResource extends Resource
                     ->label('First Name')
                     ->placeholder('First Name'),
                 TextColumn::make('subtotal')
-                    ->money('INR'),
+                    ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
                 TextColumn::make('tax_amount')
-                    ->money('INR'),
+                    ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
                 TextColumn::make('discount_amount')
-                    ->money('INR'),
+                    ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
                 TextColumn::make('grand_total')
-                    ->money('INR'),
+                    ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
+                TextColumn::make('base_amount')
+                    ->label('Base Total')
+                    ->formatStateUsing(fn ($state, $record): string => ($record->base_currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2))
+                    ->toggleable(),
+                TextColumn::make('exchange_rate')
+                    ->label('Rate')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->dateTime(),
                 TextColumn::make('settled_at')
@@ -587,10 +630,17 @@ class PosOrderResource extends Resource
 
     private static function normalizeOrderItemData(array $data, $livewire): array
     {
-        $price = $data['price'] ?? 0;
         $qty = $data['quantity'] ?? 1;
-        $orderCurrencyCode = data_get($livewire->data, 'currency_code') ?: CurrencyDefaults::defaultCode();
-        $orderExchangeRate = data_get($livewire->data, 'exchange_rate') ?: CurrencyDefaults::defaultExchangeRate();
+        $orderCurrencyCode = data_get($livewire->data, 'selected_currency_code')
+            ?: data_get($livewire->data, 'currency_code')
+            ?: CurrencyDefaults::defaultCode();
+        $orderExchangeRate = data_get($livewire->data, 'selected_exchange_rate')
+            ?: data_get($livewire->data, 'exchange_rate')
+            ?: CurrencyDefaults::defaultExchangeRate();
+        $item = PosItem::find($data['pos_item_id'] ?? null);
+        $price = $item
+            ? self::convertItemPriceForOrder($item, $orderExchangeRate)
+            : (float) ($data['price'] ?? 0);
 
         $taxes = Tax::query()
             ->whereIn('id', $data['tax_ids'] ?? array_filter([$data['tax_id'] ?? null]))
@@ -604,14 +654,27 @@ class PosOrderResource extends Resource
         $data['tax_amount'] = $taxAmount;
         $data['tax_id'] = $taxes->first()?->id;
         $data['tax_ids'] = $taxes->pluck('id')->values()->all();
+        $data['price'] = $price;
+        $data['subtotal'] = $subtotal;
         $data['total'] = $subtotal + $taxAmount;
-        $data['currency_code'] = $data['currency_code'] ?? $orderCurrencyCode;
-        $data['exchange_rate'] = $data['exchange_rate'] ?? $orderExchangeRate;
+        $data['currency_code'] = $orderCurrencyCode;
+        $data['exchange_rate'] = $orderExchangeRate;
 
         return $data;
     }
 
-    private static function formatTaxBreakdown(array $taxIds, float $subtotal = 0): string
+    private static function convertItemPriceForOrder(PosItem $item, float|int|string|null $orderExchangeRate): float
+    {
+        $itemCurrencyCode = $item->currency_code ?: CurrencyDefaults::defaultCode();
+        $itemBaseCurrencyCode = MoneyConverter::baseCurrencyForHotel($item->outlet?->hotel_id);
+        $itemExchangeRate = $item->exchange_rate
+            ?: MoneyConverter::exchangeRateToBase($itemCurrencyCode, $itemBaseCurrencyCode);
+        $basePrice = MoneyConverter::toBase($item->price, $itemExchangeRate);
+
+        return MoneyConverter::fromBase($basePrice, $orderExchangeRate);
+    }
+
+    private static function formatTaxBreakdown(array $taxIds, float $subtotal = 0, ?string $currencyCode = null): string
     {
         $taxes = Tax::query()
             ->whereIn('id', $taxIds)
@@ -623,8 +686,8 @@ class PosOrderResource extends Resource
         }
 
         return $taxes
-            ->map(function (Tax $tax) use ($subtotal): string {
-                $amount = $subtotal > 0 ? ' (Rs. '.number_format(($subtotal * (float) $tax->percentage) / 100, 2).')' : '';
+            ->map(function (Tax $tax) use ($subtotal, $currencyCode): string {
+                $amount = $subtotal > 0 ? ' ('.($currencyCode ?? CurrencyDefaults::defaultCode()).' '.number_format(($subtotal * (float) $tax->percentage) / 100, 2).')' : '';
 
                 return $tax->name.' '.number_format((float) $tax->percentage, 2).'%'.$amount;
             })
@@ -670,7 +733,14 @@ class PosOrderResource extends Resource
                     ->schema([
                         Grid::make(4)->schema([
                             TextEntry::make('discount_amount')
-                                ->money('INR'),
+                                ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
+
+                            TextEntry::make('base_amount')
+                                ->label('Base Total')
+                                ->formatStateUsing(fn ($state, $record): string => ($record->base_currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
+
+                            TextEntry::make('exchange_rate')
+                                ->label('Exchange Rate'),
 
                             TextEntry::make('status')
                                 ->badge()
@@ -704,20 +774,20 @@ class PosOrderResource extends Resource
                                     TextEntry::make('quantity'),
 
                                     TextEntry::make('price')
-                                        ->money('INR'),
+                                        ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
 
                                     TextEntry::make('tax_breakdown')
                                         ->label('Taxes')
-                                        ->state(fn ($record): string => self::formatTaxBreakdown($record->tax_ids ?: array_filter([$record->tax_id]), (float) $record->subtotal)),
+                                        ->state(fn ($record): string => self::formatTaxBreakdown($record->tax_ids ?: array_filter([$record->tax_id]), (float) $record->subtotal, $record->currency_code)),
 
                                     TextEntry::make('subtotal')
-                                        ->money('INR'),
+                                        ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
 
                                     TextEntry::make('tax_amount')
-                                        ->money('INR'),
+                                        ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2)),
 
                                     TextEntry::make('total')
-                                        ->money('INR')
+                                        ->formatStateUsing(fn ($state, $record): string => ($record->currency_code ?? CurrencyDefaults::defaultCode()).' '.number_format((float) $state, 2))
                                         ->weight('bold'),
                                 ]),
                             ]),

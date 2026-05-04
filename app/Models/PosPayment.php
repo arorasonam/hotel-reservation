@@ -67,8 +67,8 @@ class PosPayment extends Model
             $order = $payment->order;
 
             $payment->currency_code ??= $order?->currency_code ?? CurrencyDefaults::defaultCode();
-            $payment->exchange_rate ??= $order?->exchange_rate ?? CurrencyDefaults::defaultExchangeRate();
             $payment->base_currency_code ??= $order?->base_currency_code ?? MoneyConverter::baseCurrencyForHotel($order?->hotel_id);
+            $payment->exchange_rate ??= $order?->exchange_rate ?? MoneyConverter::exchangeRateToBase($payment->currency_code, $payment->base_currency_code);
             $payment->base_amount = MoneyConverter::toBase($payment->amount, $payment->exchange_rate);
         });
 
