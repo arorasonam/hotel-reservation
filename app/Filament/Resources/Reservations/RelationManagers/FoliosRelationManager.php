@@ -18,6 +18,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Support\Number;
+use Filament\Schemas\Components\Grid;
 
 class FoliosRelationManager extends RelationManager
 {
@@ -219,43 +220,47 @@ class FoliosRelationManager extends RelationManager
             ->label($label)
             ->color($color)
             ->form([
-                Select::make('reservation_room_detail_id')
-                    ->label('Room Folio')
-                    ->options(fn (): array => $this->roomOptions())
-                    ->searchable()
-                    ->preload(),
-                TextInput::make('description')
-                    ->required()
-                    ->maxLength(255)
-                    ->placeholder($descriptionPlaceholder),
-                TextInput::make('reference')
-                    ->maxLength(255),
-                Select::make('currency_code')
-                    ->label('Currency')
-                    ->options(Currency::pluck('code', 'code'))
-                    ->default(fn (): string => $this->getOwnerRecord()->currency_code ?? 'INR')
-                    ->live()
-                    ->afterStateUpdated(function ($state, callable $set): void {
-                        $set('exchange_rate_used', app(CurrencyService::class)->getRate($state ?? 'INR'));
-                    })
-                    ->required()
-                    ->native(false),
-                TextInput::make('exchange_rate_used')
-                    ->label('Exchange Rate')
-                    ->numeric()
-                    ->default(fn ($get): float => app(CurrencyService::class)->getRate($get('currency_code') ?? $this->getOwnerRecord()->currency_code ?? 'INR'))
-                    ->disabled()
-                    ->dehydrated()
-                    ->required(),
-                TextInput::make('amount')
-                    ->numeric()
-                    ->minValue(0.01)
-                    ->required(),
-                DateTimePicker::make('posted_at')
-                    ->default(now())
-                    ->required(),
-                Textarea::make('notes')
-                    ->rows(3),
+                Grid::make(3) 
+                ->schema([
+                    Select::make('reservation_room_detail_id')
+                        ->label('Room Folio')
+                        ->options(fn (): array => $this->roomOptions('checked_in'))
+                        ->searchable()
+                        ->required()
+                        ->preload(),
+                    TextInput::make('description')
+                        ->required()
+                        ->maxLength(255)
+                        ->placeholder($descriptionPlaceholder),
+                    TextInput::make('reference')
+                        ->maxLength(255),
+                    Select::make('currency_code')
+                        ->label('Currency')
+                        ->options(Currency::pluck('code', 'code'))
+                        ->default(fn (): string => $this->getOwnerRecord()->currency_code ?? 'INR')
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set): void {
+                            $set('exchange_rate_used', app(CurrencyService::class)->getRate($state ?? 'INR'));
+                        })
+                        ->required()
+                        ->native(false),
+                    TextInput::make('exchange_rate_used')
+                        ->label('Exchange Rate')
+                        ->numeric()
+                        ->default(fn ($get): float => app(CurrencyService::class)->getRate($get('currency_code') ?? $this->getOwnerRecord()->currency_code ?? 'INR'))
+                        ->disabled()
+                        ->dehydrated()
+                        ->required(),
+                    TextInput::make('amount')
+                        ->numeric()
+                        ->minValue(0.01)
+                        ->required(),
+                    DateTimePicker::make('posted_at')
+                        ->default(now())
+                        ->required(),
+                    Textarea::make('notes')
+                        ->rows(3),
+                ])
             ])
             ->action(function (array $data) use ($entryType, $type): void {
                 $currencyCode = $data['currency_code'] ?? $this->getOwnerRecord()->currency_code ?? 'INR';
