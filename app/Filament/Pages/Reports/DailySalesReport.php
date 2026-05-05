@@ -1,25 +1,30 @@
 <?php
+
 // app/Filament/Pages/Reports/DailySalesReport.php
 
 namespace App\Filament\Pages\Reports;
 
 use App\Exports\DailySalesExport;
 use App\Models\PosOrder;
+use App\Models\PosOutlet;
+use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Form;
-use Illuminate\Support\Facades\DB;
-use UnitEnum;
-use BackedEnum;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
+use UnitEnum;
 
 class DailySalesReport extends BaseReportPage
 {
-    protected static BackedEnum|string|null $navigationIcon  = 'heroicon-o-calendar-days';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-calendar-days';
+
     protected static UnitEnum|string|null $navigationGroup = 'POS Reports';
+
     protected static ?string $navigationLabel = 'Daily Sales';
-    protected static ?int    $navigationSort  = 1;
-    protected string  $view            = 'filament.pages.reports.daily-sales';
+
+    protected static ?int $navigationSort = 1;
+
+    protected string $view = 'filament.pages.reports.daily-sales';
 
     public function form(Schema $schema): Schema
     {
@@ -29,7 +34,7 @@ class DailySalesReport extends BaseReportPage
             Select::make('outlet_id')
                 ->label('Outlet')
                 ->placeholder('All Outlets')
-                ->options(\App\Models\PosOutlet::where('status', 1)->pluck('name', 'id'))
+                ->options(PosOutlet::where('status', 1)->pluck('name', 'id'))
                 ->searchable(),
         ])->columns(3);
     }
@@ -39,34 +44,34 @@ class DailySalesReport extends BaseReportPage
         $data = $this->getBaseQuery()
             ->selectRaw('
                 COUNT(*) as total_orders,
-                SUM(grand_total) as total_revenue,
-                SUM(subtotal) as total_subtotal,
-                SUM(tax_amount) as total_tax,
-                SUM(discount_amount) as total_discount,
-                AVG(grand_total) as avg_order_value
+                SUM(COALESCE(base_grand_total, grand_total)) as total_revenue,
+                SUM(COALESCE(base_subtotal, subtotal)) as total_subtotal,
+                SUM(COALESCE(base_tax_amount, tax_amount)) as total_tax,
+                SUM(COALESCE(base_discount_amount, discount_amount)) as total_discount,
+                AVG(COALESCE(base_grand_total, grand_total)) as avg_order_value
             ')
             ->first();
 
         return [
             ['label' => 'Total Orders',      'value' => number_format($data->total_orders)],
-            ['label' => 'Total Revenue',      'value' => '₹' . number_format($data->total_revenue, 2)],
-            ['label' => 'Subtotal',           'value' => '₹' . number_format($data->total_subtotal, 2)],
-            ['label' => 'Tax Collected',      'value' => '₹' . number_format($data->total_tax, 2)],
-            ['label' => 'Discounts Given',    'value' => '₹' . number_format($data->total_discount, 2)],
-            ['label' => 'Avg Order Value',    'value' => '₹' . number_format($data->avg_order_value, 2)],
+            ['label' => 'Total Revenue',      'value' => '₹'.number_format($data->total_revenue, 2)],
+            ['label' => 'Subtotal',           'value' => '₹'.number_format($data->total_subtotal, 2)],
+            ['label' => 'Tax Collected',      'value' => '₹'.number_format($data->total_tax, 2)],
+            ['label' => 'Discounts Given',    'value' => '₹'.number_format($data->total_discount, 2)],
+            ['label' => 'Avg Order Value',    'value' => '₹'.number_format($data->avg_order_value, 2)],
         ];
     }
 
-    public function getTableData(): \Illuminate\Support\Collection
+    public function getTableData(): Collection
     {
         return $this->getBaseQuery()
             ->selectRaw('
                 DATE(settled_at) as date,
                 COUNT(*) as total_orders,
-                SUM(grand_total) as revenue,
-                SUM(subtotal) as subtotal,
-                SUM(tax_amount) as tax,
-                SUM(discount_amount) as discount
+                SUM(COALESCE(base_grand_total, grand_total)) as revenue,
+                SUM(COALESCE(base_subtotal, subtotal)) as subtotal,
+                SUM(COALESCE(base_tax_amount, tax_amount)) as tax,
+                SUM(COALESCE(base_discount_amount, discount_amount)) as discount
             ')
             ->groupByRaw('DATE(settled_at)')
             ->orderByRaw('DATE(settled_at) DESC')

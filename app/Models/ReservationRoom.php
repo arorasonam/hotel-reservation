@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CurrencyService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,6 +21,9 @@ class ReservationRoom extends Model
         'check_in',
         'check_out',
         'rate',
+        'currency_code',
+        'exchange_rate_used',
+        'base_rate',
         'nights',
         'adults',
         'children',
@@ -35,9 +39,24 @@ class ReservationRoom extends Model
             'check_in' => 'date',
             'check_out' => 'date',
             'rate' => 'decimal:2',
+            'exchange_rate_used' => 'decimal:6',
+            'base_rate' => 'decimal:2',
             'checked_in_at' => 'datetime',
             'checked_out_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (ReservationRoom $reservationRoom): void {
+            $reservation = $reservationRoom->reservation;
+            $currencyCode = $reservationRoom->currency_code ?: ($reservation?->currency_code ?? 'INR');
+            $rate = (float) ($reservationRoom->exchange_rate_used ?: ($reservation?->exchange_rate_used ?? app(CurrencyService::class)->getRate($currencyCode)));
+
+            $reservationRoom->currency_code = $currencyCode;
+            $reservationRoom->exchange_rate_used = $rate;
+            $reservationRoom->base_rate = app(CurrencyService::class)->toBase((float) $reservationRoom->rate, $rate);
+        });
     }
 
     public function reservation(): BelongsTo
@@ -93,14 +112,16 @@ class ReservationRoom extends Model
     {
         return (float) $this->folios()
             ->where('type', 'debit')
-            ->sum('amount');
+            ->get(['amount', 'base_amount'])
+            ->sum(fn (ReservationFolio $folio): float => (float) ($folio->base_amount ?? $folio->amount));
     }
 
     public function getTotalFolioCreditsAttribute(): float
     {
         return (float) $this->folios()
             ->where('type', 'credit')
-            ->sum('amount');
+            ->get(['amount', 'base_amount'])
+            ->sum(fn (ReservationFolio $folio): float => (float) ($folio->base_amount ?? $folio->amount));
     }
 
     public function getRemainingBalanceAttribute(): float

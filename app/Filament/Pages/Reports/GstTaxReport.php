@@ -4,20 +4,25 @@ namespace App\Filament\Pages\Reports;
 
 use App\Exports\GstTaxExport;
 use App\Models\PosOrderItem;
+use App\Models\PosOutlet;
+use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Form;
-use UnitEnum;
-use BackedEnum;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
+use UnitEnum;
 
 class GstTaxReport extends BaseReportPage
 {
-    protected static BackedEnum|string|null $navigationIcon  = 'heroicon-o-receipt-percent';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-receipt-percent';
+
     protected static UnitEnum|string|null $navigationGroup = 'POS Reports';
+
     protected static ?string $navigationLabel = 'GST / Tax Report';
-    protected static ?int    $navigationSort  = 6;
-    protected string  $view            = 'filament.pages.reports.gst-tax';
+
+    protected static ?int $navigationSort = 6;
+
+    protected string $view = 'filament.pages.reports.gst-tax';
 
     public function form(Schema $schema): Schema
     {
@@ -27,7 +32,7 @@ class GstTaxReport extends BaseReportPage
             Select::make('outlet_id')
                 ->label('Outlet')
                 ->placeholder('All Outlets')
-                ->options(\App\Models\PosOutlet::where('status', 1)->pluck('name', 'id'))
+                ->options(PosOutlet::where('status', 1)->pluck('name', 'id'))
                 ->searchable(),
         ])->columns(3);
     }
@@ -38,22 +43,22 @@ class GstTaxReport extends BaseReportPage
 
         $totals = $this->getBaseQuery()
             ->selectRaw('
-                SUM(poi.subtotal) as taxable_amount,
-                SUM(poi.tax_amount) as total_tax,
-                SUM(poi.total) as gross_total,
+                SUM(COALESCE(poi.base_price * poi.quantity, poi.subtotal)) as taxable_amount,
+                SUM(COALESCE(poi.base_tax, poi.tax_amount)) as total_tax,
+                SUM(COALESCE(poi.base_total, poi.total)) as gross_total,
                 COUNT(DISTINCT poi.pos_order_id) as total_orders
             ')
             ->first();
 
         return [
-            ['label' => 'Taxable Amount',  'value' => '₹' . number_format($totals->taxable_amount, 2)],
-            ['label' => 'Total Tax',       'value' => '₹' . number_format($totals->total_tax, 2)],
-            ['label' => 'Gross Total',     'value' => '₹' . number_format($totals->gross_total, 2)],
+            ['label' => 'Taxable Amount',  'value' => '₹'.number_format($totals->taxable_amount, 2)],
+            ['label' => 'Total Tax',       'value' => '₹'.number_format($totals->total_tax, 2)],
+            ['label' => 'Gross Total',     'value' => '₹'.number_format($totals->gross_total, 2)],
             ['label' => 'Orders',          'value' => number_format($totals->total_orders)],
         ];
     }
 
-    public function getTableData(): \Illuminate\Support\Collection
+    public function getTableData(): Collection
     {
         // Group by tax slab (tax_percentage) and category
         // Shows: tax %, category name, taxable amount, tax collected
@@ -64,9 +69,9 @@ class GstTaxReport extends BaseReportPage
                 pos_categories.name as category_name,
                 COUNT(DISTINCT poi.pos_order_id) as orders,
                 SUM(poi.quantity) as qty_sold,
-                SUM(poi.subtotal) as taxable_amount,
-                SUM(poi.tax_amount) as tax_collected,
-                SUM(poi.total) as gross_amount
+                SUM(COALESCE(poi.base_price * poi.quantity, poi.subtotal)) as taxable_amount,
+                SUM(COALESCE(poi.base_tax, poi.tax_amount)) as tax_collected,
+                SUM(COALESCE(poi.base_total, poi.total)) as gross_amount
             ')
             ->groupBy('poi.tax_percentage', 'pos_categories.id', 'pos_categories.name')
             ->orderBy('poi.tax_percentage')
@@ -77,6 +82,7 @@ class GstTaxReport extends BaseReportPage
                 $half = $row->tax_collected / 2;
                 $row->cgst = $half;
                 $row->sgst = $half;
+
                 return $row;
             });
     }
@@ -86,7 +92,10 @@ class GstTaxReport extends BaseReportPage
         return ['Category', 'Tax %', 'Orders', 'Qty', 'Taxable Amount', 'CGST', 'SGST', 'Total Tax', 'Gross Amount'];
     }
 
-    public function getExportClass(): string { return GstTaxExport::class; }
+    public function getExportClass(): string
+    {
+        return GstTaxExport::class;
+    }
 
     private function getBaseQuery()
     {

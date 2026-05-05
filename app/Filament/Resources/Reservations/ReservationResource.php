@@ -9,6 +9,7 @@ use App\Filament\Resources\Reservations\Pages\ViewReservation;
 use App\Filament\Resources\Reservations\RelationManagers\FoliosRelationManager;
 use App\Filament\Resources\Reservations\RelationManagers\PosOrdersRelationManager;
 use App\Helpers\HotelContext; // Using Schema instead of Form
+use App\Models\Currency;
 use App\Models\Guest;
 use App\Models\Hotel;
 use App\Models\HotelRoom;
@@ -16,6 +17,7 @@ use App\Models\MealPlan;
 use App\Models\Reservation;
 use App\Models\ReservationRoomDetail;
 use App\Models\RoomType;
+use App\Services\CurrencyService;
 use BackedEnum;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -194,6 +196,33 @@ class ReservationResource extends Resource
                                                 ->required()
                                                 ->native(false)
                                                 ->inlineLabel(),
+                                        ]),
+                                        Grid::make(3)->schema([
+                                            Select::make('currency_code')
+                                                ->label('Currency')
+                                                ->options(Currency::pluck('code', 'code'))
+                                                ->default(fn () => Currency::where('is_base', true)->value('code') ?? 'INR')
+                                                ->live()
+                                                ->afterStateUpdated(function ($state, callable $set): void {
+                                                    $set('exchange_rate_used', app(CurrencyService::class)->getRate($state ?? 'INR'));
+                                                })
+                                                ->required()
+                                                ->native(false),
+
+                                            TextInput::make('exchange_rate_used')
+                                                ->label('Exchange Rate')
+                                                ->numeric()
+                                                ->default(fn ($get): float => app(CurrencyService::class)->getRate($get('currency_code') ?? 'INR'))
+                                                ->disabled()
+                                                ->dehydrated()
+                                                ->required(),
+
+                                            TextInput::make('rate')
+                                                ->label('Room Rate')
+                                                ->numeric()
+                                                ->default(0)
+                                                ->minValue(0)
+                                                ->required(),
                                         ]),
                                         Grid::make(3)->schema([
                                             // Checkbox::make('same_plan_all_rooms')->label('Same Plan All Rooms')->default(true)->live(),
@@ -617,6 +646,18 @@ class ReservationResource extends Resource
                     }),
                 Tables\Columns\TextColumn::make('check_in')->label('Arrival Date')->date()->sortable(),
                 Tables\Columns\TextColumn::make('check_out')->label('Departure Date')->date()->sortable(),
+                Tables\Columns\TextColumn::make('currency_code')
+                    ->label('Currency'),
+                Tables\Columns\TextColumn::make('rate')
+                    ->label('Rate')
+                    ->money(fn ($record): string => $record->currency_code ?? 'INR'),
+                Tables\Columns\TextColumn::make('total_amount')
+                    ->label('Reservation Total')
+                    ->money(fn ($record): string => $record->currency_code ?? 'INR'),
+                Tables\Columns\TextColumn::make('base_total_amount')
+                    ->label('Base Total')
+                    ->money('INR')
+                    ->toggleable(),
                 // Tables\Columns\TextColumn::make('roomType.name')->label('Room Type'),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()

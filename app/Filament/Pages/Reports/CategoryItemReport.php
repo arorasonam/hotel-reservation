@@ -4,19 +4,25 @@ namespace App\Filament\Pages\Reports;
 
 use App\Exports\CategoryItemExport;
 use App\Models\PosOrderItem;
+use App\Models\PosOutlet;
+use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use UnitEnum;
-use BackedEnum;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
+use UnitEnum;
 
 class CategoryItemReport extends BaseReportPage
 {
-    protected static BackedEnum|string|null $navigationIcon  = 'heroicon-o-chart-bar';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-chart-bar';
+
     protected static UnitEnum|string|null $navigationGroup = 'POS Reports';
+
     protected static ?string $navigationLabel = 'Sales by Item';
-    protected static ?int    $navigationSort  = 3;
-    protected string  $view            = 'filament.pages.reports.category-item';
+
+    protected static ?int $navigationSort = 3;
+
+    protected string $view = 'filament.pages.reports.category-item';
 
     public ?string $group_by = 'item'; // 'category' or 'item'
 
@@ -28,7 +34,7 @@ class CategoryItemReport extends BaseReportPage
             Select::make('outlet_id')
                 ->label('Outlet')
                 ->placeholder('All Outlets')
-                ->options(\App\Models\PosOutlet::where('status', 1)->pluck('name', 'id'))
+                ->options(PosOutlet::where('status', 1)->pluck('name', 'id'))
                 ->searchable(),
             Select::make('group_by')
                 ->label('Group By')
@@ -42,7 +48,7 @@ class CategoryItemReport extends BaseReportPage
         $data = $this->getBaseQuery()
             ->selectRaw('
                 SUM(poi.quantity) as total_qty,
-                SUM(poi.total) as total_revenue,
+                SUM(COALESCE(poi.base_total, poi.total)) as total_revenue,
                 COUNT(DISTINCT poi.pos_order_id) as total_orders,
                 COUNT(DISTINCT poi.pos_item_id) as unique_items
             ')
@@ -50,13 +56,13 @@ class CategoryItemReport extends BaseReportPage
 
         return [
             ['label' => 'Total Qty Sold',  'value' => number_format($data->total_qty)],
-            ['label' => 'Total Revenue',   'value' => '₹' . number_format($data->total_revenue, 2)],
+            ['label' => 'Total Revenue',   'value' => '₹'.number_format($data->total_revenue, 2)],
             ['label' => 'Orders',          'value' => number_format($data->total_orders)],
             ['label' => 'Unique Items',    'value' => number_format($data->unique_items)],
         ];
     }
 
-    public function getTableData(): \Illuminate\Support\Collection
+    public function getTableData(): Collection
     {
         if ($this->group_by === 'category') {
             return $this->getBaseQuery()
@@ -64,9 +70,9 @@ class CategoryItemReport extends BaseReportPage
                 ->selectRaw('
                     pos_categories.name as category_name,
                     SUM(poi.quantity) as qty_sold,
-                    SUM(poi.subtotal) as subtotal,
-                    SUM(poi.tax_amount) as tax,
-                    SUM(poi.total) as revenue
+                    SUM(COALESCE(poi.base_price * poi.quantity, poi.subtotal)) as subtotal,
+                    SUM(COALESCE(poi.base_tax, poi.tax_amount)) as tax,
+                    SUM(COALESCE(poi.base_total, poi.total)) as revenue
                 ')
                 ->groupBy('pos_categories.id', 'pos_categories.name')
                 ->orderByDesc('revenue')
@@ -81,10 +87,10 @@ class CategoryItemReport extends BaseReportPage
                 pos_categories.name as category_name,
                 pos_items.name as item_name,
                 SUM(poi.quantity) as qty_sold,
-                AVG(poi.price) as avg_price,
-                SUM(poi.subtotal) as subtotal,
-                SUM(poi.tax_amount) as tax,
-                SUM(poi.total) as revenue
+                AVG(COALESCE(poi.base_price, poi.price)) as avg_price,
+                SUM(COALESCE(poi.base_price * poi.quantity, poi.subtotal)) as subtotal,
+                SUM(COALESCE(poi.base_tax, poi.tax_amount)) as tax,
+                SUM(COALESCE(poi.base_total, poi.total)) as revenue
             ')
             ->groupBy('pos_items.id', 'pos_items.name', 'pos_categories.id', 'pos_categories.name')
             ->orderByDesc('revenue')
@@ -98,7 +104,10 @@ class CategoryItemReport extends BaseReportPage
             : ['Category', 'Item', 'Qty Sold', 'Avg Price', 'Subtotal', 'Tax', 'Revenue'];
     }
 
-    public function getExportClass(): string { return CategoryItemExport::class; }
+    public function getExportClass(): string
+    {
+        return CategoryItemExport::class;
+    }
 
     private function getBaseQuery()
     {

@@ -5,15 +5,15 @@ namespace App\Exports;
 use App\Models\PosOrderItem;
 use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
-class GstTaxExport implements FromCollection, WithHeadings, WithTitle, ShouldAutoSize
+class GstTaxExport implements FromCollection, ShouldAutoSize, WithHeadings, WithTitle
 {
     public function __construct(
-        private string  $dateFrom,
-        private string  $dateTo,
+        private string $dateFrom,
+        private string $dateTo,
         private ?string $outletId = null,
     ) {}
 
@@ -33,11 +33,11 @@ class GstTaxExport implements FromCollection, WithHeadings, WithTitle, ShouldAut
                 poi.tax_percentage,
                 COUNT(DISTINCT poi.pos_order_id) as orders,
                 SUM(poi.quantity) as qty_sold,
-                SUM(poi.subtotal) as taxable_amount,
-                SUM(poi.tax_amount) / 2 as cgst,
-                SUM(poi.tax_amount) / 2 as sgst,
-                SUM(poi.tax_amount) as total_tax,
-                SUM(poi.total) as gross_amount
+                SUM(COALESCE(poi.base_price * poi.quantity, poi.subtotal)) as taxable_amount,
+                SUM(COALESCE(poi.base_tax, poi.tax_amount)) / 2 as cgst,
+                SUM(COALESCE(poi.base_tax, poi.tax_amount)) / 2 as sgst,
+                SUM(COALESCE(poi.base_tax, poi.tax_amount)) as total_tax,
+                SUM(COALESCE(poi.base_total, poi.total)) as gross_amount
             ')
             ->groupBy('poi.tax_percentage', 'pos_categories.id', 'pos_categories.name')
             ->orderBy('poi.tax_percentage');
@@ -46,9 +46,9 @@ class GstTaxExport implements FromCollection, WithHeadings, WithTitle, ShouldAut
             $query->where('pos_orders.pos_outlet_id', $this->outletId);
         }
 
-        return $query->get()->map(fn($r) => [
+        return $query->get()->map(fn ($r) => [
             $r->category_name,
-            $r->tax_percentage . '%',
+            $r->tax_percentage.'%',
             $r->orders,
             $r->qty_sold,
             number_format($r->taxable_amount, 2),
@@ -64,5 +64,8 @@ class GstTaxExport implements FromCollection, WithHeadings, WithTitle, ShouldAut
         return ['Category', 'Tax %', 'Orders', 'Qty', 'Taxable Amount (₹)', 'CGST (₹)', 'SGST (₹)', 'Total Tax (₹)', 'Gross Amount (₹)'];
     }
 
-    public function title(): string { return 'GST Tax Report'; }
+    public function title(): string
+    {
+        return 'GST Tax Report';
+    }
 }

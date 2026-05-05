@@ -25,9 +25,16 @@ class PosOrdersRelationManager extends RelationManager
                     ->placeholder('N/A'),
                 TextColumn::make('table_no')
                     ->placeholder('N/A'),
-                TextColumn::make('grand_total')
-                    ->money('INR'),
+                TextColumn::make('currency_code')
+                    ->label('Currency'),
+                TextColumn::make('subtotal')
+                    ->money(fn ($record): string => $record->currency_code ?? 'INR'),
                 TextColumn::make('tax_amount')
+                    ->money(fn ($record): string => $record->currency_code ?? 'INR'),
+                TextColumn::make('grand_total')
+                    ->money(fn ($record): string => $record->currency_code ?? 'INR'),
+                TextColumn::make('base_grand_total')
+                    ->label('Base Total')
                     ->money('INR'),
                 TextColumn::make('status'),
                 TextColumn::make('settled_at')
@@ -44,6 +51,7 @@ class PosOrdersRelationManager extends RelationManager
                         'paid' => 'Paid',
                         'cancelled' => 'Cancelled',
                     ]),
-            ]);
+            ])
+            ->defaultSort('id', 'desc');
     }
 }

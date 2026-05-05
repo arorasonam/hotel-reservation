@@ -45,10 +45,10 @@ class GuestBillingExport implements FromCollection, ShouldAutoSize, WithHeadings
                 pos_orders.room_id,
                 pos_outlets.name as outlet_name,
                 COUNT(pos_orders.id) as total_orders,
-                SUM(pos_orders.subtotal) as subtotal,
-                SUM(pos_orders.tax_amount) as tax,
-                SUM(pos_orders.discount_amount) as discount,
-                SUM(pos_orders.grand_total) as grand_total
+                SUM(COALESCE(pos_orders.base_subtotal, pos_orders.subtotal)) as subtotal,
+                SUM(COALESCE(pos_orders.base_tax_amount, pos_orders.tax_amount)) as tax,
+                SUM(COALESCE(pos_orders.base_discount_amount, pos_orders.discount_amount)) as discount,
+                SUM(COALESCE(pos_orders.base_grand_total, pos_orders.grand_total)) as grand_total
             ')
             ->groupBy(
                 'pos_orders.guest_id',

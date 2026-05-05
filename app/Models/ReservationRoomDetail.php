@@ -72,14 +72,16 @@ class ReservationRoomDetail extends Model
     {
         return (float) $this->folios()
             ->where('type', 'debit')
-            ->sum('amount');
+            ->get(['amount', 'base_amount'])
+            ->sum(fn (ReservationFolio $folio): float => (float) ($folio->base_amount ?? $folio->amount));
     }
 
     public function getTotalFolioCreditsAttribute(): float
     {
         return (float) $this->folios()
             ->where('type', 'credit')
-            ->sum('amount');
+            ->get(['amount', 'base_amount'])
+            ->sum(fn (ReservationFolio $folio): float => (float) ($folio->base_amount ?? $folio->amount));
     }
 
     public function getRemainingBalanceAttribute(): float

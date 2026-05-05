@@ -1,4 +1,12 @@
 <x-filament-panels::page>
+    @php
+        $baseAmount = fn ($row): float => (float) ($row->base_total_amount ?? $row->total_amount ?? $row->total_bill ?? 0);
+        $reportTotal = $this->reportData->sum(fn ($row): float => $baseAmount($row));
+        $igstTotal = $this->reportData
+            ->where('is_igst_applied', true)
+            ->sum(fn ($row): float => $baseAmount($row) * 0.18);
+    @endphp
+
     <form wire:submit="submit">
         {{ $this->form }}
     </form>
@@ -7,7 +15,7 @@
         {{-- Total Revenue Card --}}
         <x-filament::section>
             <div class="text-sm text-gray-500">Total Revenue (Period)</div>
-            <div class="text-2xl font-bold">₹ {{ number_format($this->reportData->sum('total_bill'), 2) }}</div>
+            <div class="text-2xl font-bold">{{ \Illuminate\Support\Number::currency($reportTotal, 'INR') }}</div>
         </x-filament::section>
 
         {{-- Occupancy Card --}}
@@ -19,7 +27,7 @@
         {{-- Tax Card --}}
         <x-filament::section>
             <div class="text-sm text-gray-500">Estimated IGST</div>
-            <div class="text-2xl font-bold text-danger-600">₹ {{ number_format($this->reportData->where('is_igst_applied', true)->sum('total_bill') * 0.18, 2) }}</div>
+            <div class="text-2xl font-bold text-danger-600">{{ \Illuminate\Support\Number::currency($igstTotal, 'INR') }}</div>
         </x-filament::section>
     </div>
 
@@ -47,7 +55,7 @@
                             {{ ucfirst($row->status) }}
                         </x-filament::badge>
                     </td>
-                    <td class="px-4 py-2 text-right font-mono">₹ {{ number_format($row->total_bill, 2) }}</td>
+                    <td class="px-4 py-2 text-right font-mono">{{ \Illuminate\Support\Number::currency($baseAmount($row), 'INR') }}</td>
                 </tr>
                 @endforeach
             </tbody>

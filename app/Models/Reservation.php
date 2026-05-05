@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CurrencyService;
 use App\Services\ReservationFolioService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,7 @@ class Reservation extends Model
         'phone',
         'status',
         'rate',
+        'base_rate',
         'nights',
         'room_no',
         'booking_source_id',
@@ -33,6 +35,15 @@ class Reservation extends Model
         'breakfast',
         'type',
         'rate_plan',
+        'currency_code',
+        'exchange_rate_used',
+        'base_price',
+        'tax_amount',
+        'base_tax_amount',
+        'discount_amount',
+        'base_discount_amount',
+        'total_amount',
+        'base_total_amount',
     ];
 
     protected function casts(): array
@@ -41,38 +52,65 @@ class Reservation extends Model
             'check_in' => 'date',
             'check_out' => 'date',
             'rate' => 'decimal:2',
+            'base_rate' => 'decimal:2',
+            'exchange_rate_used' => 'decimal:6',
+            'base_price' => 'decimal:2',
+            'tax_amount' => 'decimal:2',
+            'base_tax_amount' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'base_discount_amount' => 'decimal:2',
+            'total_amount' => 'decimal:2',
+            'base_total_amount' => 'decimal:2',
         ];
     }
 
     protected static function booted(): void
     {
+        static::saving(function (Reservation $reservation): void {
+            $currencyCode = $reservation->currency_code ?: 'INR';
+            $rate = (float) ($reservation->exchange_rate_used ?: app(CurrencyService::class)->getRate($currencyCode));
+            $roomCharge = round((float) $reservation->rate * max(1, (int) $reservation->nights), 2);
+            $taxAmount = (float) $reservation->tax_amount;
+            $discountAmount = (float) $reservation->discount_amount;
+            $totalAmount = round($roomCharge + $taxAmount - $discountAmount, 2);
+
+            $reservation->currency_code = $currencyCode;
+            $reservation->exchange_rate_used = $rate;
+            $reservation->base_price = $roomCharge;
+            $reservation->total_amount = $totalAmount;
+            $reservation->base_rate = app(CurrencyService::class)->toBase((float) $reservation->rate, $rate);
+            $reservation->base_tax_amount = app(CurrencyService::class)->toBase($taxAmount, $rate);
+            $reservation->base_discount_amount = app(CurrencyService::class)->toBase($discountAmount, $rate);
+            $reservation->base_total_amount = app(CurrencyService::class)->toBase($totalAmount, $rate);
+        });
+
         static::creating(function ($reservation) {
             if (! $reservation->reservation_number) {
                 // 1. Get the Hotel Prefix (e.g., THE)
                 $hotelPrefix = 'RES';
                 if ($reservation->hotel_id) {
-                    $hotel = \App\Models\Hotel::find($reservation->hotel_id);
+                    $hotel = Hotel::find($reservation->hotel_id);
                     $hotelPrefix = $hotel ? strtoupper(substr($hotel->name, 0, 3)) : 'RES';
                 }
 
                 /** * 2. Robust ID Generation
-                 * Instead of count(), we look for the highest existing number to avoid 
+                 * Instead of count(), we look for the highest existing number to avoid
                  * duplicate IDs if a previous reservation was deleted.
                  */
-                $lastReservation = self::where('reservation_number', 'like', $hotelPrefix . '_%')
+                $lastReservation = self::where('reservation_number', 'like', $hotelPrefix.'_%')
                     ->orderBy('reservation_number', 'desc')
                     ->first();
 
                 if ($lastReservation) {
                     // Extract number from "THE_0000005" -> 5
-                    $lastNumber = (int) str_replace($hotelPrefix . '_', '', $lastReservation->reservation_number);
+                    $lastNumber = (int) str_replace($hotelPrefix.'_', '', $lastReservation->reservation_number);
                     $nextId = $lastNumber + 1;
                 } else {
                     $nextId = 1;
                 }
 
                 // 3. Generate the formatted string: THE_0000001
-                $reservation->reservation_number = $hotelPrefix . '_' . str_pad($nextId, 7, '0', STR_PAD_LEFT);
+                $reservation->reservation_number = $hotelPrefix.'_'.str_pad($nextId, 7, '0', STR_PAD_LEFT);
             }
         });
 
@@ -145,21 +183,25 @@ class Reservation extends Model
 
     public function getTotalFolioAmountAttribute(): float
     {
-        return (float) $this->folios()->sum('amount');
+        return (float) $this->folios()
+            ->get(['amount', 'base_amount'])
+            ->sum(fn (ReservationFolio $folio): float => (float) ($folio->base_amount ?? $folio->amount));
     }
 
     public function getTotalFolioDebitsAttribute(): float
     {
         return (float) $this->folios()
             ->where('type', 'debit')
-            ->sum('amount');
+            ->get(['amount', 'base_amount'])
+            ->sum(fn (ReservationFolio $folio): float => (float) ($folio->base_amount ?? $folio->amount));
     }
 
     public function getTotalFolioCreditsAttribute(): float
     {
         return (float) $this->folios()
             ->where('type', 'credit')
-            ->sum('amount');
+            ->get(['amount', 'base_amount'])
+            ->sum(fn (ReservationFolio $folio): float => (float) ($folio->base_amount ?? $folio->amount));
     }
 
     public function getRemainingBalanceAttribute(): float

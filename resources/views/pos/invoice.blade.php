@@ -33,6 +33,8 @@ th, td{
 <body>
 
 @php
+    $orderCurrency = $order->currency_code ?? 'INR';
+    $money = fn (float|int|string|null $amount, ?string $currency = null): string => \Illuminate\Support\Number::currency((float) $amount, $currency ?: $orderCurrency);
     $taxSummary = collect();
 
     foreach ($order->items as $lineItem) {
@@ -54,6 +56,7 @@ th, td{
 <h4>{{ $order->outlet->name ?? 'Hotel Outlet' }}</h4>
 <p>Invoice #{{ $order->id }}</p>
 <p>Date: {{ $order->created_at }}</p>
+<p>Currency: {{ $orderCurrency }}</p>
 </div>
 
 <hr>
@@ -101,16 +104,16 @@ Room:
 <tr style="text-align:center">
 <td>{{ $item->item->name }}</td>
 <td>{{ $item->quantity }}</td>
-<td>{{ $item->price }}</td>
+<td>{{ $money($item->price, $item->currency_code ?? $orderCurrency) }}</td>
 <td>
 @forelse($item->tax_breakdown as $tax)
-{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}% (Rs. {{ number_format($tax['amount'], 2) }})<br>
+{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}% ({{ $money($tax['amount'], $item->currency_code ?? $orderCurrency) }})<br>
 @empty
 0%
 @endforelse
 </td>
-<td>{{ $item->tax_amount }}</td>
-<td>{{ $item->total }}</td>
+<td>{{ $money($item->tax_amount, $item->currency_code ?? $orderCurrency) }}</td>
+<td>{{ $money($item->total, $item->currency_code ?? $orderCurrency) }}</td>
 </tr>
 
 @endforeach
@@ -121,22 +124,27 @@ Room:
 
 <hr>
 
-<p>Subtotal: Rs. {{ $order->subtotal }}</p>
+<p>Subtotal: {{ $money($order->subtotal) }}</p>
 
 @if($order->tax_amount)
 @foreach($taxSummary as $tax)
-<p>{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}%: Rs. {{ number_format($tax['amount'], 2) }}</p>
+<p>{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}%: {{ $money($tax['amount']) }}</p>
 @endforeach
-<p>Tax Total: Rs. {{ $order->tax_amount }}</p>
+<p>Tax Total: {{ $money($order->tax_amount) }}</p>
 @endif
 
 @if($order->discount_amount)
-<p>Discount: Rs.  {{ $order->discount_amount }}</p>
+<p>Discount: {{ $money($order->discount_amount) }}</p>
 @endif
 
 <p class="total">
-Grand Total: Rs. {{ $order->grand_total }}
+Grand Total: {{ $money($order->grand_total) }}
 </p>
+
+@if(($order->currency_code ?? 'INR') !== 'INR')
+<p>Base Total: {{ $money($order->base_grand_total ?? $order->grand_total, 'INR') }}</p>
+<p>Exchange Rate Used: {{ number_format((float) ($order->exchange_rate_used ?? 1), 6) }}</p>
+@endif
 
 <hr>
 
@@ -146,7 +154,10 @@ Grand Total: Rs. {{ $order->grand_total }}
 <p>
 {{ ucfirst($payment->payment_method) }}
 :
-Rs. {{ $payment->amount }}
+{{ $money($payment->amount, $payment->currency_code ?? $orderCurrency) }}
+@if(($payment->currency_code ?? $orderCurrency) !== 'INR')
+    (Base: {{ $money($payment->base_amount ?? $payment->amount, 'INR') }})
+@endif
 </p>
 @empty
 <p>No payments recorded.</p>

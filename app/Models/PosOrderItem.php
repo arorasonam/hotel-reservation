@@ -18,6 +18,11 @@ class PosOrderItem extends Model
         'tax_percentage',
         'subtotal',
         'total',
+        'currency_code',
+        'exchange_rate_used',
+        'base_price',
+        'base_tax',
+        'base_total',
     ];
 
     protected function casts(): array

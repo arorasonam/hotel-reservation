@@ -95,6 +95,8 @@
     @php
         $folioScope = $folioScope ?? 'all';
         $folioTitle = $folioTitle ?? 'All Folios';
+        $money = fn (float|int|string|null $amount, ?string $currency = 'INR'): string => \Illuminate\Support\Number::currency((float) $amount, $currency ?: 'INR');
+        $baseAmount = fn ($entry): float => (float) ($entry->base_amount ?? $entry->amount ?? 0);
         $primaryGuest = $reservation->reservationGuests->firstWhere('is_primary', true) ?? $reservation->reservationGuests->first();
         $guestName = $primaryGuest
             ? trim($primaryGuest->first_name . ' ' . $primaryGuest->last_name)
@@ -133,6 +135,7 @@
                 <p>Check-in: {{ optional($reservation->check_in)->format('d M Y') ?? $reservation->check_in }}</p>
                 <p>Check-out: {{ optional($reservation->check_out)->format('d M Y') ?? $reservation->check_out }}</p>
                 <p>Folio: {{ $folioTitle }}</p>
+                <p>Reservation Currency: {{ $reservation->currency_code ?? 'INR' }}</p>
             </td>
         </tr>
     </table>
@@ -140,8 +143,8 @@
     @foreach($roomSections as $room)
         @php
             $entries = $room->folios;
-            $debits = (float) $entries->where('type', 'debit')->sum('amount');
-            $credits = (float) $entries->where('type', 'credit')->sum('amount');
+            $debits = (float) $entries->where('type', 'debit')->sum($baseAmount);
+            $credits = (float) $entries->where('type', 'credit')->sum($baseAmount);
         @endphp
 
         <div class="folio-section">
@@ -152,27 +155,27 @@
                     @if($room->category?->mealPlan)
                         | {{ $room->category->mealPlan->name }}
                     @endif
-                    | Balance {{ number_format($debits - $credits, 2) }}
+                    | Balance {{ $money($debits - $credits, 'INR') }}
                 </p>
             </div>
 
-            @include('reservations.partials.folio-entries', ['entries' => $entries])
+            @include('reservations.partials.folio-entries', ['entries' => $entries, 'showBase' => true])
         </div>
     @endforeach
 
     @if($masterEntries->isNotEmpty() || $folioScope === 'master')
         @php
-            $debits = (float) $masterEntries->where('type', 'debit')->sum('amount');
-            $credits = (float) $masterEntries->where('type', 'credit')->sum('amount');
+            $debits = (float) $masterEntries->where('type', 'debit')->sum($baseAmount);
+            $credits = (float) $masterEntries->where('type', 'credit')->sum($baseAmount);
         @endphp
 
         <div class="folio-section">
             <div class="folio-heading">
                 <h3>Master Folio</h3>
-                <p>Reservation-level entries | Balance {{ number_format($debits - $credits, 2) }}</p>
+                <p>Reservation-level entries | Balance {{ $money($debits - $credits, 'INR') }}</p>
             </div>
 
-            @include('reservations.partials.folio-entries', ['entries' => $masterEntries])
+            @include('reservations.partials.folio-entries', ['entries' => $masterEntries, 'showBase' => true])
         </div>
     @endif
 
@@ -199,15 +202,15 @@
     <table class="summary-table summary">
         <tr>
             <td>Total Debits</td>
-            <td>{{ number_format($summary['debits'], 2) }}</td>
+            <td>{{ $money($summary['debits'], 'INR') }}</td>
         </tr>
         <tr>
             <td>Total Credits</td>
-            <td>{{ number_format($summary['credits'], 2) }}</td>
+            <td>{{ $money($summary['credits'], 'INR') }}</td>
         </tr>
         <tr>
             <td>Balance</td>
-            <td>{{ number_format($summary['balance'], 2) }}</td>
+            <td>{{ $money($summary['balance'], 'INR') }}</td>
         </tr>
     </table>
 </body>

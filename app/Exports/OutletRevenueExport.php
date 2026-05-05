@@ -34,10 +34,10 @@ class OutletRevenueExport implements FromCollection, ShouldAutoSize, WithHeading
             ->selectRaw('
             pos_outlets.name as outlet_name,
             COUNT(pos_orders.id) as total_orders,
-            SUM(pos_orders.subtotal) as subtotal,
-            SUM(pos_orders.tax_amount) as tax,
-            SUM(pos_orders.discount_amount) as discount,
-            SUM(pos_orders.grand_total) as revenue
+            SUM(COALESCE(pos_orders.base_subtotal, pos_orders.subtotal)) as subtotal,
+            SUM(COALESCE(pos_orders.base_tax_amount, pos_orders.tax_amount)) as tax,
+            SUM(COALESCE(pos_orders.base_discount_amount, pos_orders.discount_amount)) as discount,
+            SUM(COALESCE(pos_orders.base_grand_total, pos_orders.grand_total)) as revenue
         ')
             ->groupBy('pos_outlets.id', 'pos_outlets.name')
             ->orderByDesc('revenue');

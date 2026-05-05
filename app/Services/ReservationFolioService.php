@@ -16,6 +16,8 @@ class ReservationFolioService
     public function syncReservationStayCharge(Reservation $reservation): void
     {
         $amount = round(((float) $reservation->rate) * ((int) $reservation->nights), 2);
+        $currencyCode = $reservation->currency_code ?? 'INR';
+        $rate = (float) ($reservation->exchange_rate_used ?? app(CurrencyService::class)->getRate($currencyCode));
 
         if ($amount <= 0) {
             $this->deleteEntry('reservation', $reservation->id, 'stay_charge');
@@ -39,6 +41,9 @@ class ReservationFolioService
             entryType: 'charge',
             postedAt: $reservation->check_in ? Carbon::parse($reservation->check_in) : now(),
             reference: $reservation->reservation_number,
+            currencyCode: $currencyCode,
+            exchangeRateUsed: $rate,
+            baseAmount: app(CurrencyService::class)->toBase($amount, $rate),
         );
     }
 
@@ -53,6 +58,8 @@ class ReservationFolioService
         $rate = (float) ($reservationRoom->rate ?: $reservation->rate);
         $nights = (int) ($reservationRoom->nights ?: $reservation->nights ?: 1);
         $amount = round($rate * $nights, 2);
+        $currencyCode = $reservationRoom->currency_code ?? $reservation->currency_code ?? 'INR';
+        $exchangeRate = (float) ($reservationRoom->exchange_rate_used ?? $reservation->exchange_rate_used ?? app(CurrencyService::class)->getRate($currencyCode));
 
         if ($amount <= 0) {
             $this->deleteEntry('reservation_room', $reservationRoom->id, 'stay_charge');
@@ -77,6 +84,9 @@ class ReservationFolioService
             entryType: 'charge',
             postedAt: $reservationRoom->check_in ? Carbon::parse($reservationRoom->check_in) : now(),
             reference: $reservation->reservation_number,
+            currencyCode: $currencyCode,
+            exchangeRateUsed: $exchangeRate,
+            baseAmount: app(CurrencyService::class)->toBase($amount, $exchangeRate),
         );
     }
 
@@ -90,9 +100,9 @@ class ReservationFolioService
 
         $reservation = $order->reservation;
         $reservationRoomDetail = $order->reservationRoomDetail;
-        
-        // if (! $reservation || ! $reservationRoomDetail || ! $reservationRoomDetail->isCheckedIn() || $order->status === 'draft') {
-         if (! $reservation || ! $reservationRoomDetail || $order->status === 'draft') {
+
+        if (! $reservation || ! $reservationRoomDetail || ! $reservationRoomDetail->isCheckedIn() || $order->status === 'draft') {
+            // if (! $reservation || ! $reservationRoomDetail || $order->status === 'draft') {
             $this->deleteEntriesForSource('pos_order', $order->id);
 
             return;
@@ -112,6 +122,7 @@ class ReservationFolioService
             description: 'POS charge - Order #'.$reference,
             postedAt: $postedAt,
             reference: $reference,
+            baseAmount: (float) ($order->base_subtotal ?? $order->subtotal),
         );
 
         $this->syncOrderComponent(
@@ -125,6 +136,7 @@ class ReservationFolioService
             description: 'POS tax - Order #'.$reference,
             postedAt: $postedAt,
             reference: $reference,
+            baseAmount: (float) ($order->base_tax_amount ?? $order->tax_amount),
         );
 
         $this->syncOrderComponent(
@@ -138,6 +150,7 @@ class ReservationFolioService
             description: 'POS discount - Order #'.$reference,
             postedAt: $postedAt,
             reference: $reference,
+            baseAmount: (float) ($order->base_discount_amount ?? $order->discount_amount),
         );
     }
 
@@ -166,7 +179,6 @@ class ReservationFolioService
 
             $order->refresh();
         }
-dd($order);
         $this->syncPosOrderCharges($order);
 
         if (! $order->reservation_id || ! $order->reservation_room_detail_id || $payment->payment_method === 'room_posting') {
@@ -198,6 +210,9 @@ dd($order);
             reference: $payment->transaction_reference ?: $order->order_number,
             notes: ucfirst((string) $payment->payment_method),
             reservationRoomDetail: $reservationRoomDetail,
+            currencyCode: $payment->currency_code ?? $order->currency_code ?? 'INR',
+            exchangeRateUsed: (float) ($payment->exchange_rate_used ?? $order->exchange_rate_used ?? 1),
+            baseAmount: (float) ($payment->base_amount ?? $payment->amount),
         );
     }
 
@@ -249,11 +264,11 @@ dd($order);
     {
         $debits = (float) $entries
             ->where('type', 'debit')
-            ->sum('amount');
+            ->sum(fn (ReservationFolio $entry): float => (float) ($entry->base_amount ?? $entry->amount));
 
         $credits = (float) $entries
             ->where('type', 'credit')
-            ->sum('amount');
+            ->sum(fn (ReservationFolio $entry): float => (float) ($entry->base_amount ?? $entry->amount));
 
         return [
             'debits' => round($debits, 2),
@@ -273,6 +288,7 @@ dd($order);
         string $description,
         mixed $postedAt,
         string $reference,
+        ?float $baseAmount = null,
     ): void {
         if ($amount <= 0) {
             $this->deleteEntry('pos_order', $order->id, $sourceKey);
@@ -293,6 +309,9 @@ dd($order);
             postedAt: $postedAt,
             reference: $reference,
             reservationRoomDetail: $reservationRoomDetail,
+            currencyCode: $order->currency_code ?? 'INR',
+            exchangeRateUsed: (float) ($order->exchange_rate_used ?? 1),
+            baseAmount: $baseAmount,
         );
     }
 
@@ -310,6 +329,9 @@ dd($order);
         ?string $reference = null,
         ?string $notes = null,
         ?ReservationRoomDetail $reservationRoomDetail = null,
+        string $currencyCode = 'INR',
+        float $exchangeRateUsed = 1,
+        ?float $baseAmount = null,
     ): ReservationFolio {
         return ReservationFolio::query()->updateOrCreate(
             [
@@ -325,6 +347,9 @@ dd($order);
                 'reference' => $reference,
                 'notes' => $notes,
                 'amount' => round($amount, 2),
+                'currency_code' => $currencyCode,
+                'exchange_rate_used' => $exchangeRateUsed,
+                'base_amount' => round($baseAmount ?? $amount, 2),
                 'type' => $type,
                 'entry_type' => $entryType,
                 'posted_at' => $postedAt,

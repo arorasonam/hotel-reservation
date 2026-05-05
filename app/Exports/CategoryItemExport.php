@@ -5,15 +5,15 @@ namespace App\Exports;
 use App\Models\PosOrderItem;
 use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
-class CategoryItemExport implements FromCollection, WithHeadings, WithTitle, ShouldAutoSize
+class CategoryItemExport implements FromCollection, ShouldAutoSize, WithHeadings, WithTitle
 {
     public function __construct(
-        private string  $dateFrom,
-        private string  $dateTo,
+        private string $dateFrom,
+        private string $dateTo,
         private ?string $outletId = null,
     ) {}
 
@@ -33,10 +33,10 @@ class CategoryItemExport implements FromCollection, WithHeadings, WithTitle, Sho
                 pos_categories.name as category_name,
                 pos_items.name as item_name,
                 SUM(poi.quantity) as qty_sold,
-                AVG(poi.price) as avg_price,
-                SUM(poi.subtotal) as subtotal,
-                SUM(poi.tax_amount) as tax,
-                SUM(poi.total) as revenue
+                AVG(COALESCE(poi.base_price, poi.price)) as avg_price,
+                SUM(COALESCE(poi.base_price * poi.quantity, poi.subtotal)) as subtotal,
+                SUM(COALESCE(poi.base_tax, poi.tax_amount)) as tax,
+                SUM(COALESCE(poi.base_total, poi.total)) as revenue
             ')
             ->groupBy('pos_items.id', 'pos_items.name', 'pos_categories.id', 'pos_categories.name')
             ->orderByDesc('revenue');
@@ -45,7 +45,7 @@ class CategoryItemExport implements FromCollection, WithHeadings, WithTitle, Sho
             $query->where('pos_orders.pos_outlet_id', $this->outletId);
         }
 
-        return $query->get()->map(fn($r) => [
+        return $query->get()->map(fn ($r) => [
             $r->category_name,
             $r->item_name,
             $r->qty_sold,
@@ -61,5 +61,8 @@ class CategoryItemExport implements FromCollection, WithHeadings, WithTitle, Sho
         return ['Category', 'Item', 'Qty Sold', 'Avg Price (₹)', 'Subtotal (₹)', 'Tax (₹)', 'Revenue (₹)'];
     }
 
-    public function title(): string { return 'Sales by Item'; }
+    public function title(): string
+    {
+        return 'Sales by Item';
+    }
 }

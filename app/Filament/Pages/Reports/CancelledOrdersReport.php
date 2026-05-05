@@ -1,24 +1,31 @@
 <?php
+
 // app/Filament/Pages/Reports/CancelledOrdersReport.php
 
 namespace App\Filament\Pages\Reports;
 
 use App\Exports\CancelledOrdersExport;
 use App\Models\PosOrder;
+use App\Models\PosOutlet;
+use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Form;
-use UnitEnum;
-use BackedEnum;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use UnitEnum;
 
 class CancelledOrdersReport extends BaseReportPage
 {
-    protected static BackedEnum|string|null  $navigationIcon  = 'heroicon-o-x-circle';
-    protected static UnitEnum|string|null  $navigationGroup = 'POS Reports';
-    protected static ?string  $navigationLabel = 'Cancelled Orders';
-    protected static ?int    $navigationSort  = 5;
-    protected string  $view            = 'filament.pages.reports.cancelled-orders';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-x-circle';
+
+    protected static UnitEnum|string|null $navigationGroup = 'POS Reports';
+
+    protected static ?string $navigationLabel = 'Cancelled Orders';
+
+    protected static ?int $navigationSort = 5;
+
+    protected string $view = 'filament.pages.reports.cancelled-orders';
 
     public function form(Schema $schema): Schema
     {
@@ -28,7 +35,7 @@ class CancelledOrdersReport extends BaseReportPage
             Select::make('outlet_id')
                 ->label('Outlet')
                 ->placeholder('All Outlets')
-                ->options(\App\Models\PosOutlet::where('status', 1)->pluck('name', 'id'))
+                ->options(PosOutlet::where('status', 1)->pluck('name', 'id'))
                 ->searchable(),
         ])->columns(3);
     }
@@ -39,11 +46,11 @@ class CancelledOrdersReport extends BaseReportPage
 
         // Compare cancelled vs total to show loss %
         $cancelled = $this->getBaseQuery()
-            ->selectRaw('COUNT(*) as orders, SUM(grand_total) as revenue')
+            ->selectRaw('COUNT(*) as orders, SUM(COALESCE(base_grand_total, grand_total)) as revenue')
             ->first();
 
         $total = PosOrder::whereBetween('created_at', [$from, $to])
-            ->selectRaw('COUNT(*) as orders, SUM(grand_total) as revenue')
+            ->selectRaw('COUNT(*) as orders, SUM(COALESCE(base_grand_total, grand_total)) as revenue')
             ->first();
 
         $cancelRate = $total->orders > 0
@@ -52,13 +59,13 @@ class CancelledOrdersReport extends BaseReportPage
 
         return [
             ['label' => 'Cancelled Orders',    'value' => number_format($cancelled->orders)],
-            ['label' => 'Lost Revenue',         'value' => '₹' . number_format($cancelled->revenue, 2)],
-            ['label' => 'Cancellation Rate',    'value' => $cancelRate . '%'],
-            ['label' => 'Total Orders (period)','value' => number_format($total->orders)],
+            ['label' => 'Lost Revenue',         'value' => '₹'.number_format($cancelled->revenue, 2)],
+            ['label' => 'Cancellation Rate',    'value' => $cancelRate.'%'],
+            ['label' => 'Total Orders (period)', 'value' => number_format($total->orders)],
         ];
     }
 
-    public function getTableData(): \Illuminate\Support\Collection
+    public function getTableData(): Collection
     {
         return $this->getBaseQuery()
             ->join('pos_outlets', 'pos_orders.pos_outlet_id', '=', 'pos_outlets.id')
@@ -68,10 +75,10 @@ class CancelledOrdersReport extends BaseReportPage
                 'pos_outlets.name as outlet_name',
                 'pos_orders.order_type',
                 'pos_orders.table_no',
-                'pos_orders.subtotal',
-                'pos_orders.tax_amount',
-                'pos_orders.discount_amount',
-                'pos_orders.grand_total',
+                DB::raw('COALESCE(pos_orders.base_subtotal, pos_orders.subtotal) as subtotal'),
+                DB::raw('COALESCE(pos_orders.base_tax_amount, pos_orders.tax_amount) as tax_amount'),
+                DB::raw('COALESCE(pos_orders.base_discount_amount, pos_orders.discount_amount) as discount_amount'),
+                DB::raw('COALESCE(pos_orders.base_grand_total, pos_orders.grand_total) as grand_total'),
                 'users.name as created_by',
                 'pos_orders.created_at',
                 'pos_orders.updated_at as cancelled_at',
@@ -89,7 +96,10 @@ class CancelledOrdersReport extends BaseReportPage
         ];
     }
 
-    public function getExportClass(): string { return CancelledOrdersExport::class; }
+    public function getExportClass(): string
+    {
+        return CancelledOrdersExport::class;
+    }
 
     private function getBaseQuery()
     {

@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\Reservations\RelationManagers;
 
+use App\Models\Currency;
 use App\Models\ReservationFolio;
 use App\Models\ReservationRoomDetail;
+use App\Services\CurrencyService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\DateTimePicker;
@@ -15,13 +17,14 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 class FoliosRelationManager extends RelationManager
 {
     protected static string $relationship = 'folios';
 
     protected static ?string $title = 'Folio';
-    
+
     public function table(Table $table): Table
     {
         return $table
@@ -40,9 +43,9 @@ class FoliosRelationManager extends RelationManager
 
                         return sprintf(
                             'Charges: %s | Credits: %s | Balance: %s',
-                            number_format($record->reservationRoomDetail->total_folio_debits, 2),
-                            number_format($record->reservationRoomDetail->total_folio_credits, 2),
-                            number_format($record->reservationRoomDetail->remaining_balance, 2),
+                            Number::currency($record->reservationRoomDetail->total_folio_debits, 'INR'),
+                            Number::currency($record->reservationRoomDetail->total_folio_credits, 'INR'),
+                            Number::currency($record->reservationRoomDetail->remaining_balance, 'INR'),
                         );
                     })
                     ->collapsible(),
@@ -73,11 +76,22 @@ class FoliosRelationManager extends RelationManager
                 TextColumn::make('source')
                     ->badge()
                     ->toggleable(),
+                TextColumn::make('currency_code')
+                    ->label('Currency'),
                 TextColumn::make('debit')
                     ->state(fn (ReservationFolio $record): ?float => $record->type === 'debit' ? (float) $record->amount : null)
-                    ->money('INR'),
+                    ->money(fn (ReservationFolio $record): string => $record->currency_code ?? 'INR'),
                 TextColumn::make('credit')
                     ->state(fn (ReservationFolio $record): ?float => $record->type === 'credit' ? (float) $record->amount : null)
+                    ->money(fn (ReservationFolio $record): string => $record->currency_code ?? 'INR'),
+                TextColumn::make('base_debit')
+                    ->label('Base Debit')
+                    ->state(fn (ReservationFolio $record): ?float => $record->type === 'debit' ? (float) ($record->base_amount ?? $record->amount) : null)
+                    ->money('INR')
+                    ->toggleable(),
+                TextColumn::make('base_credit')
+                    ->label('Base Credit')
+                    ->state(fn (ReservationFolio $record): ?float => $record->type === 'credit' ? (float) ($record->base_amount ?? $record->amount) : null)
                     ->money('INR'),
             ])
             ->filters([
@@ -216,6 +230,23 @@ class FoliosRelationManager extends RelationManager
                     ->placeholder($descriptionPlaceholder),
                 TextInput::make('reference')
                     ->maxLength(255),
+                Select::make('currency_code')
+                    ->label('Currency')
+                    ->options(Currency::pluck('code', 'code'))
+                    ->default(fn (): string => $this->getOwnerRecord()->currency_code ?? 'INR')
+                    ->live()
+                    ->afterStateUpdated(function ($state, callable $set): void {
+                        $set('exchange_rate_used', app(CurrencyService::class)->getRate($state ?? 'INR'));
+                    })
+                    ->required()
+                    ->native(false),
+                TextInput::make('exchange_rate_used')
+                    ->label('Exchange Rate')
+                    ->numeric()
+                    ->default(fn ($get): float => app(CurrencyService::class)->getRate($get('currency_code') ?? $this->getOwnerRecord()->currency_code ?? 'INR'))
+                    ->disabled()
+                    ->dehydrated()
+                    ->required(),
                 TextInput::make('amount')
                     ->numeric()
                     ->minValue(0.01)
@@ -227,6 +258,9 @@ class FoliosRelationManager extends RelationManager
                     ->rows(3),
             ])
             ->action(function (array $data) use ($entryType, $type): void {
+                $currencyCode = $data['currency_code'] ?? $this->getOwnerRecord()->currency_code ?? 'INR';
+                $rate = (float) ($data['exchange_rate_used'] ?? app(CurrencyService::class)->getRate($currencyCode));
+
                 $this->getOwnerRecord()->folios()->create([
                     'source' => 'manual',
                     'source_id' => null,
@@ -236,6 +270,9 @@ class FoliosRelationManager extends RelationManager
                     'reference' => $data['reference'] ?? null,
                     'notes' => $data['notes'] ?? null,
                     'amount' => $data['amount'],
+                    'currency_code' => $currencyCode,
+                    'exchange_rate_used' => $rate,
+                    'base_amount' => app(CurrencyService::class)->toBase((float) $data['amount'], $rate),
                     'type' => $type,
                     'entry_type' => $entryType,
                     'posted_at' => $data['posted_at'],

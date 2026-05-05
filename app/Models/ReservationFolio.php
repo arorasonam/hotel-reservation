@@ -15,9 +15,12 @@ class ReservationFolio extends Model
         'source_id',
         'source_key',
         'description',
+        'currency_code',
+        'exchange_rate_used',
         'reference',
         'notes',
         'amount',
+        'base_amount',
         'type',
         'entry_type',
         'posted_at',
@@ -27,6 +30,8 @@ class ReservationFolio extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'exchange_rate_used' => 'decimal:6',
+            'base_amount' => 'decimal:2',
             'posted_at' => 'datetime',
         ];
     }

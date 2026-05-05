@@ -44,8 +44,8 @@ class GuestBillingReport extends BaseReportPage
             ->selectRaw('
                 COUNT(*) as total_orders,
                 COUNT(DISTINCT guest_id) as unique_guests,
-                SUM(grand_total) as total_charged,
-                SUM(tax_amount) as total_tax
+                SUM(COALESCE(base_grand_total, grand_total)) as total_charged,
+                SUM(COALESCE(base_tax_amount, tax_amount)) as total_tax
             ')
             ->first();
 
@@ -74,10 +74,10 @@ class GuestBillingReport extends BaseReportPage
                 pos_orders.room_id,
                 pos_outlets.name as outlet_name,
                 COUNT(pos_orders.id) as total_orders,
-                SUM(pos_orders.subtotal) as subtotal,
-                SUM(pos_orders.tax_amount) as tax,
-                SUM(pos_orders.discount_amount) as discount,
-                SUM(pos_orders.grand_total) as grand_total,
+                SUM(COALESCE(pos_orders.base_subtotal, pos_orders.subtotal)) as subtotal,
+                SUM(COALESCE(pos_orders.base_tax_amount, pos_orders.tax_amount)) as tax,
+                SUM(COALESCE(pos_orders.base_discount_amount, pos_orders.discount_amount)) as discount,
+                SUM(COALESCE(pos_orders.base_grand_total, pos_orders.grand_total)) as grand_total,
                 MIN(COALESCE(pos_orders.settled_at, pos_orders.created_at)) as first_order,
                 MAX(COALESCE(pos_orders.settled_at, pos_orders.created_at)) as last_order
             ')

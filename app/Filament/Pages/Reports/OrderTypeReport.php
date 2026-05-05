@@ -4,19 +4,25 @@ namespace App\Filament\Pages\Reports;
 
 use App\Exports\OrderTypeExport;
 use App\Models\PosOrder;
+use App\Models\PosOutlet;
+use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use UnitEnum;
-use BackedEnum;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
+use UnitEnum;
 
 class OrderTypeReport extends BaseReportPage
 {
-    protected static BackedEnum|string|null $navigationIcon  = 'heroicon-o-queue-list';
+    protected static BackedEnum|string|null $navigationIcon = 'heroicon-o-queue-list';
+
     protected static UnitEnum|string|null $navigationGroup = 'POS Reports';
+
     protected static ?string $navigationLabel = 'Order Type Breakdown';
-    protected static ?int    $navigationSort  = 4;
-    protected string  $view  = 'filament.pages.reports.order-type';
+
+    protected static ?int $navigationSort = 4;
+
+    protected string $view = 'filament.pages.reports.order-type';
 
     public function form(Schema $schema): Schema
     {
@@ -26,7 +32,7 @@ class OrderTypeReport extends BaseReportPage
             Select::make('outlet_id')
                 ->label('Outlet')
                 ->placeholder('All Outlets')
-                ->options(\App\Models\PosOutlet::where('status', 1)->pluck('name', 'id'))
+                ->options(PosOutlet::where('status', 1)->pluck('name', 'id'))
                 ->searchable(),
         ])->columns(3);
     }
@@ -37,15 +43,15 @@ class OrderTypeReport extends BaseReportPage
 
         return [
             ['label' => 'Room Charge Orders',  'value' => number_format($data->where('order_type', 'room_charge')->sum('total_orders'))],
-            ['label' => 'Room Charge Revenue',  'value' => '₹' . number_format($data->where('order_type', 'room_charge')->sum('revenue'), 2)],
+            ['label' => 'Room Charge Revenue',  'value' => '₹'.number_format($data->where('order_type', 'room_charge')->sum('revenue'), 2)],
             ['label' => 'Walk-in Orders',       'value' => number_format($data->where('order_type', 'walk_in')->sum('total_orders'))],
-            ['label' => 'Walk-in Revenue',      'value' => '₹' . number_format($data->where('order_type', 'walk_in')->sum('revenue'), 2)],
+            ['label' => 'Walk-in Revenue',      'value' => '₹'.number_format($data->where('order_type', 'walk_in')->sum('revenue'), 2)],
             ['label' => 'Takeaway Orders',      'value' => number_format($data->where('order_type', 'takeaway')->sum('total_orders'))],
-            ['label' => 'Takeaway Revenue',     'value' => '₹' . number_format($data->where('order_type', 'takeaway')->sum('revenue'), 2)],
+            ['label' => 'Takeaway Revenue',     'value' => '₹'.number_format($data->where('order_type', 'takeaway')->sum('revenue'), 2)],
         ];
     }
 
-    public function getTableData(): \Illuminate\Support\Collection
+    public function getTableData(): Collection
     {
         [$from, $to] = $this->dateRange();
 
@@ -56,10 +62,10 @@ class OrderTypeReport extends BaseReportPage
                 pos_outlets.name as outlet_name,
                 pos_orders.order_type,
                 COUNT(pos_orders.id) as total_orders,
-                SUM(pos_orders.subtotal) as subtotal,
-                SUM(pos_orders.tax_amount) as tax,
-                SUM(pos_orders.discount_amount) as discount,
-                SUM(pos_orders.grand_total) as revenue
+                SUM(COALESCE(pos_orders.base_subtotal, pos_orders.subtotal)) as subtotal,
+                SUM(COALESCE(pos_orders.base_tax_amount, pos_orders.tax_amount)) as tax,
+                SUM(COALESCE(pos_orders.base_discount_amount, pos_orders.discount_amount)) as discount,
+                SUM(COALESCE(pos_orders.base_grand_total, pos_orders.grand_total)) as revenue
             ')
             ->groupBy('pos_outlets.id', 'pos_outlets.name', 'pos_orders.order_type')
             ->orderBy('pos_outlets.name')
@@ -77,5 +83,8 @@ class OrderTypeReport extends BaseReportPage
         return ['Outlet', 'Order Type', 'Orders', 'Subtotal', 'Tax', 'Discount', 'Revenue'];
     }
 
-    public function getExportClass(): string { return OrderTypeExport::class; }
+    public function getExportClass(): string
+    {
+        return OrderTypeExport::class;
+    }
 }

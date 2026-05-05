@@ -6,6 +6,7 @@ use App\Filament\Resources\PosOrders\Pages\CreatePosOrder;
 use App\Filament\Resources\PosOrders\Pages\EditPosOrder;
 use App\Filament\Resources\PosOrders\Pages\ListPosOrders;
 use App\Helpers\HotelContext;
+use App\Models\Currency;
 use App\Models\HotelRoom;
 use App\Models\PosCategory;
 use App\Models\PosItem;
@@ -14,6 +15,7 @@ use App\Models\PosOutlet;
 use App\Models\Reservation;
 use App\Models\ReservationRoomDetail;
 use App\Models\Tax;
+use App\Services\CurrencyService;
 use App\Services\ReservationFolioService;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -37,6 +39,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Number;
 use UnitEnum;
 
 class PosOrderResource extends Resource
@@ -73,6 +76,27 @@ class PosOrderResource extends Resource
         return $schema
             ->components([
                 Hidden::make('hotel_id')->dehydrated(true),
+                Select::make('currency_code')
+                    ->label('Currency')
+                    ->options(Currency::pluck('code', 'code'))
+                    ->default(fn () => Currency::where('is_base', true)->value('code'))
+                    ->reactive()
+                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+
+                        $rate = app(CurrencyService::class)
+                            ->getRate($state);
+
+                        $set('exchange_rate_used', $rate);
+
+                        // Recalculate totals
+                        // self::recalculateTotals($set, $get, $rate);
+                    }),
+
+                TextInput::make('exchange_rate_used')
+                    ->numeric()
+                    ->disabled()
+                    ->dehydrated(),
+
                 TextInput::make('order_number')
                     ->default(fn () => 'POS-'.now()->format('YmdHisv'))
                     ->disabled()
@@ -375,26 +399,11 @@ class PosOrderResource extends Resource
                             ->disabled()
                             ->dehydrated(true),
                     ])
-                    ->mutateRelationshipDataBeforeSaveUsing(function (array $data): array {
-
-                        $price = $data['price'] ?? 0;
-                        $qty = $data['quantity'] ?? 1;
-
-                        $taxes = Tax::query()
-                            ->whereIn('id', $data['tax_ids'] ?? array_filter([$data['tax_id'] ?? null]))
-                            ->get();
-                        $taxPercent = (float) $taxes->sum('percentage');
-
-                        $subtotal = $price * $qty;
-                        $taxAmount = ($subtotal * $taxPercent) / 100;
-
-                        $data['tax_percentage'] = $taxPercent;
-                        $data['tax_amount'] = $taxAmount;
-                        $data['tax_id'] = $taxes->first()?->id;
-                        $data['tax_ids'] = $taxes->pluck('id')->values()->all();
-                        $data['total'] = $subtotal + $taxAmount;
-
-                        return $data;
+                    ->mutateRelationshipDataBeforeCreateUsing(function (array $data, callable $get): array {
+                        return self::prepareItemDataForSave($data, $get);
+                    })
+                    ->mutateRelationshipDataBeforeSaveUsing(function (array $data, callable $get): array {
+                        return self::prepareItemDataForSave($data, $get);
                     })
                     ->columns(8)
                     ->required(),
@@ -577,7 +586,7 @@ class PosOrderResource extends Resource
         ];
     }
 
-    private static function formatTaxBreakdown(array $taxIds, float $subtotal = 0): string
+    private static function formatTaxBreakdown(array $taxIds, float $subtotal = 0, string $currencyCode = 'INR'): string
     {
         $taxes = Tax::query()
             ->whereIn('id', $taxIds)
@@ -589,12 +598,45 @@ class PosOrderResource extends Resource
         }
 
         return $taxes
-            ->map(function (Tax $tax) use ($subtotal): string {
-                $amount = $subtotal > 0 ? ' (Rs. '.number_format(($subtotal * (float) $tax->percentage) / 100, 2).')' : '';
+            ->map(function (Tax $tax) use ($currencyCode, $subtotal): string {
+                $amount = $subtotal > 0
+                    ? ' ('.Number::currency(($subtotal * (float) $tax->percentage) / 100, $currencyCode).')'
+                    : '';
 
                 return $tax->name.' '.number_format((float) $tax->percentage, 2).'%'.$amount;
             })
             ->join(' + ');
+    }
+
+    private static function prepareItemDataForSave(array $data, callable $get): array
+    {
+        $price = (float) ($data['price'] ?? 0);
+        $qty = (int) ($data['quantity'] ?? 1);
+
+        $taxes = Tax::query()
+            ->whereIn('id', $data['tax_ids'] ?? array_filter([$data['tax_id'] ?? null]))
+            ->get();
+        $taxPercent = (float) $taxes->sum('percentage');
+
+        $subtotal = $price * $qty;
+        $taxAmount = ($subtotal * $taxPercent) / 100;
+        $total = $subtotal + $taxAmount;
+        $currencyCode = (string) ($get('currency_code') ?: 'INR');
+        $rate = app(CurrencyService::class)->getRate($currencyCode);
+
+        $data['tax_percentage'] = $taxPercent;
+        $data['tax_amount'] = $taxAmount;
+        $data['tax_id'] = $taxes->first()?->id;
+        $data['tax_ids'] = $taxes->pluck('id')->values()->all();
+        $data['subtotal'] = $subtotal;
+        $data['total'] = $total;
+        $data['currency_code'] = $currencyCode;
+        $data['exchange_rate_used'] = $rate;
+        $data['base_price'] = app(CurrencyService::class)->toBase($price, $rate);
+        $data['base_tax'] = app(CurrencyService::class)->toBase($taxAmount, $rate);
+        $data['base_total'] = app(CurrencyService::class)->toBase($total, $rate);
+
+        return $data;
     }
 
     public static function infolist(Schema $schema): Schema
@@ -635,8 +677,21 @@ class PosOrderResource extends Resource
                     ->columnSpanFull()
                     ->schema([
                         Grid::make(4)->schema([
+                            TextEntry::make('currency_code')
+                                ->label('Currency'),
+
+                            TextEntry::make('subtotal')
+                                ->money(fn ($record): string => $record->currency_code ?? 'INR'),
+
+                            TextEntry::make('tax_amount')
+                                ->money(fn ($record): string => $record->currency_code ?? 'INR'),
+
                             TextEntry::make('discount_amount')
-                                ->money('INR'),
+                                ->money(fn ($record): string => $record->currency_code ?? 'INR'),
+
+                            TextEntry::make('grand_total')
+                                ->money(fn ($record): string => $record->currency_code ?? 'INR')
+                                ->weight('bold'),
 
                             TextEntry::make('status')
                                 ->badge()
@@ -670,20 +725,24 @@ class PosOrderResource extends Resource
                                     TextEntry::make('quantity'),
 
                                     TextEntry::make('price')
-                                        ->money('INR'),
+                                        ->money(fn ($record): string => $record->currency_code ?? 'INR'),
 
                                     TextEntry::make('tax_breakdown')
                                         ->label('Taxes')
-                                        ->state(fn ($record): string => self::formatTaxBreakdown($record->tax_ids ?: array_filter([$record->tax_id]), (float) $record->subtotal)),
+                                        ->state(fn ($record): string => self::formatTaxBreakdown(
+                                            $record->tax_ids ?: array_filter([$record->tax_id]),
+                                            (float) $record->subtotal,
+                                            $record->currency_code ?? 'INR',
+                                        )),
 
                                     TextEntry::make('subtotal')
-                                        ->money('INR'),
+                                        ->money(fn ($record): string => $record->currency_code ?? 'INR'),
 
                                     TextEntry::make('tax_amount')
-                                        ->money('INR'),
+                                        ->money(fn ($record): string => $record->currency_code ?? 'INR'),
 
                                     TextEntry::make('total')
-                                        ->money('INR')
+                                        ->money(fn ($record): string => $record->currency_code ?? 'INR')
                                         ->weight('bold'),
                                 ]),
                             ]),

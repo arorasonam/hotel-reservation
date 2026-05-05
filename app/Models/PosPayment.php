@@ -14,7 +14,10 @@ class PosPayment extends Model
         'reservation_room_id',
         'reservation_room_detail_id',
         'payment_method',
+        'currency_code',
+        'exchange_rate_used',
         'amount',
+        'base_amount',
         'transaction_reference',
         'paid_at',
         'received_by',
@@ -24,6 +27,8 @@ class PosPayment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'exchange_rate_used' => 'decimal:6',
+            'base_amount' => 'decimal:2',
             'paid_at' => 'datetime',
         ];
     }
