@@ -225,8 +225,6 @@ class PosOrderResource extends Resource
                     ->schema([
                         Hidden::make('tax_id')
                             ->dehydrated(true),
-                        Hidden::make('tax_ids')
-                            ->dehydrated(true),
                         Select::make('pos_category_id')
                             ->label('Category')
                             // ->dehydrated(false)
@@ -249,7 +247,7 @@ class PosOrderResource extends Resource
                             ->afterStateUpdated(function (callable $set): void {
                                 $set('pos_item_id', null);
                                 $set('tax_id', null);
-                                $set('tax_ids', null);
+                                // $set('tax_ids', null);
                                 $set('tax_percentage', 0);
                                 $set('price', 0);
                                 $set('subtotal', 0);
@@ -289,7 +287,7 @@ class PosOrderResource extends Resource
                                 $taxSnapshot = self::calculateItemTax($livewire->data ?? [], $item, $qty, $price);
 
                                 $set('tax_id', $taxSnapshot['tax_ids'][0] ?? null);
-                                $set('tax_ids', $taxSnapshot['tax_ids']);
+                                // $set('tax_ids', $taxSnapshot['tax_ids']);
                                 $set('price', $price);
                                 $set('tax_percentage', $taxSnapshot['total_percentage']);
                                 $set('subtotal', $taxSnapshot['taxable_amount']);
@@ -313,7 +311,7 @@ class PosOrderResource extends Resource
                                 $taxSnapshot = self::calculateItemTax($livewire->data ?? [], $item, $qty, $price);
 
                                 $set('tax_id', $taxSnapshot['tax_ids'][0] ?? null);
-                                $set('tax_ids', $taxSnapshot['tax_ids']);
+                                // $set('tax_ids', $taxSnapshot['tax_ids']);
                                 $set('price', $price);
                                 $set('tax_percentage', $taxSnapshot['total_percentage']);
                                 $set('subtotal', $taxSnapshot['taxable_amount']);
@@ -336,7 +334,7 @@ class PosOrderResource extends Resource
                                 $taxSnapshot = self::calculateItemTax($livewire->data ?? [], $item, $state, $price);
 
                                 $set('tax_id', $taxSnapshot['tax_ids'][0] ?? null);
-                                $set('tax_ids', $taxSnapshot['tax_ids']);
+                                // $set('tax_ids', $taxSnapshot['tax_ids']);
                                 $set('subtotal', $taxSnapshot['taxable_amount']);
                                 $set('tax_amount', $taxSnapshot['tax_amount']);
                                 $set('tax_percentage', $taxSnapshot['total_percentage']);
@@ -397,7 +395,7 @@ class PosOrderResource extends Resource
                         );
 
                         $data['tax_id'] = $taxSnapshot['tax_ids'][0] ?? null;
-                        $data['tax_ids'] = $taxSnapshot['tax_ids'];
+                        // $data['tax_ids'] = $taxSnapshot['tax_ids'];
                         $data['tax_percentage'] = $taxSnapshot['total_percentage'];
                         $data['tax_amount'] = $taxSnapshot['tax_amount'];
                         $data['subtotal'] = $taxSnapshot['taxable_amount'];

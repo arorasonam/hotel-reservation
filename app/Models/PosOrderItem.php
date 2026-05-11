@@ -15,7 +15,7 @@ class PosOrderItem extends Model
         'quantity',
         'price',
         'tax_id',
-        'tax_ids',
+        // 'tax_ids',
         'tax_amount',
         'tax_percentage',
         'subtotal',
@@ -46,12 +46,13 @@ class PosOrderItem extends Model
 
     public function getTaxBreakdownAttribute(): array
     {
-        if (empty($this->tax_ids)) {
+        if (empty($this->tax_id)) {
             return [];
         }
 
         return Tax::query()
-            ->whereIn('id', $this->tax_ids)
+            ->where('id', $this->tax_id)
+            // ->whereIn('id', $this->tax_ids)
             ->get()
             ->map(fn (Tax $tax): array => [
                 'name' => $tax->name,
@@ -82,7 +83,7 @@ class PosOrderItem extends Model
             );
 
             $orderItem->tax_id = $taxCalculation['tax_ids'][0] ?? null;
-            $orderItem->tax_ids = $taxCalculation['tax_ids'];
+            // $orderItem->tax_ids = $taxCalculation['tax_ids'];
             $orderItem->tax_percentage = $taxCalculation['total_percentage'];
             $orderItem->subtotal = $taxCalculation['taxable_amount'];
             $orderItem->tax_amount = $taxCalculation['tax_amount'];
