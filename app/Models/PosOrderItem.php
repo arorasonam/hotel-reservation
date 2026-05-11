@@ -15,6 +15,7 @@ class PosOrderItem extends Model
         'quantity',
         'price',
         'tax_id',
+        'base_price',
         // 'tax_ids',
         'tax_amount',
         'tax_percentage',
