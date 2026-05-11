@@ -22,6 +22,13 @@ class TaxForm
                     ->required(),
                 TextInput::make('name')
                     ->required(),
+                Select::make('type')
+                    ->options([
+                        'gst' => 'GST',
+                        'vat' => 'VAT',
+                    ])
+                    ->default('gst')
+                    ->required(),
                 TextInput::make('percentage')
                     ->required()
                     ->numeric(),

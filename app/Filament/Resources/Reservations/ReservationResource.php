@@ -723,7 +723,7 @@ class ReservationResource extends Resource
                 EditAction::make()->icon('heroicon-m-pencil-square'),
                 DeleteAction::make()->icon('heroicon-m-trash'),
                 // ])->label('Actions')->icon('heroicon-m-ellipsis-vertical'),
-            ]);
+            ])->defaultSort('id', 'desc');
     }
 
     public static function getPages(): array

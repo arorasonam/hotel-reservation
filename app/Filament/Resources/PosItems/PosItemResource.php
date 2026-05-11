@@ -10,6 +10,7 @@ use App\Helpers\HotelContext;
 use App\Models\PosCategory;
 use App\Models\PosItem;
 use App\Models\PosOutlet;
+use App\Services\TaxService;
 use BackedEnum;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -98,6 +99,18 @@ class PosItemResource extends Resource
                     ->required(),
                 TextInput::make('price')
                     ->numeric()
+                    ->required(),
+                Select::make('tax_category')
+                    ->label('Tax Category')
+                    ->options([
+                        TaxService::ITEM_CATEGORY_STANDARD_RESTAURANT => 'Standard restaurant',
+                        'packaged_food' => 'Packaged food',
+                        'processed_food_12' => 'Processed food 12%',
+                        'processed_food_18' => 'Processed food 18%',
+                        'aerated_drinks_luxury' => 'Aerated drinks / luxury items',
+                        'fresh_staples' => 'Fresh staples / exempt',
+                    ])
+                    ->default(TaxService::ITEM_CATEGORY_STANDARD_RESTAURANT)
                     ->required(),
                 Toggle::make('status')
                     ->default(true),

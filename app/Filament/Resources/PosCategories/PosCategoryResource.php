@@ -80,16 +80,16 @@ class PosCategoryResource extends Resource
                     ->dehydrated(true),
                 TextInput::make('name')
                     ->required(),
-                Select::make('taxes')
-                    ->relationship(
-                        'taxes',
-                        'name',
-                        modifyQueryUsing: fn (Builder $query, callable $get) => self::scopeTaxesToOutletCountry($query, $get('pos_outlet_id'))
-                    )
-                    ->label('Category Taxes')
-                    ->multiple()
-                    ->searchable()
-                    ->preload(),
+                // Select::make('taxes')
+                //     ->relationship(
+                //         'taxes',
+                //         'name',
+                //         modifyQueryUsing: fn (Builder $query, callable $get) => self::scopeTaxesToOutletCountry($query, $get('pos_outlet_id'))
+                //     )
+                //     ->label('Category Taxes')
+                //     ->multiple()
+                //     ->searchable()
+                //     ->preload(),
                 Toggle::make('status')
                     ->default(true),
             ]);

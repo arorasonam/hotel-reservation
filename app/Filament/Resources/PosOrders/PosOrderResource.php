@@ -13,8 +13,8 @@ use App\Models\PosOrder;
 use App\Models\PosOutlet;
 use App\Models\Reservation;
 use App\Models\ReservationRoomDetail;
-use App\Models\Tax;
 use App\Services\ReservationFolioService;
+use App\Services\TaxService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -277,31 +277,26 @@ class PosOrderResource extends Resource
                             })
                             ->reactive()
                             ->disabled(fn ($get, $livewire) => empty(data_get($livewire->data, 'pos_outlet_id')) || empty($get('pos_category_id')))
-                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                            ->afterStateUpdated(function ($state, callable $set, callable $get, $livewire): void {
                                 $item = PosItem::find($state);
 
                                 if (! $item) {
                                     return;
                                 }
 
-                                $taxData = self::getItemTaxData($item);
                                 $price = $item->price;
                                 $qty = $get('quantity') ?? 1;
-                                $taxPercent = $taxData['percentage'];
+                                $taxSnapshot = self::calculateItemTax($livewire->data ?? [], $item, $qty, $price);
 
-                                $subtotal = $price * $qty;
-                                $taxAmount = ($subtotal * $taxPercent) / 100;
-                                $total = $subtotal + $taxAmount;
-
-                                $set('tax_id', $taxData['tax_id']);
-                                $set('tax_ids', $taxData['tax_ids']);
+                                $set('tax_id', $taxSnapshot['tax_ids'][0] ?? null);
+                                $set('tax_ids', $taxSnapshot['tax_ids']);
                                 $set('price', $price);
-                                $set('tax_percentage', $taxPercent);
-                                $set('subtotal', $subtotal);
-                                $set('tax_amount', $taxAmount);
-                                $set('total', $total);
+                                $set('tax_percentage', $taxSnapshot['total_percentage']);
+                                $set('subtotal', $taxSnapshot['taxable_amount']);
+                                $set('tax_amount', $taxSnapshot['tax_amount']);
+                                $set('total', $taxSnapshot['taxable_amount'] + $taxSnapshot['tax_amount']);
                             })
-                            ->afterStateHydrated(function ($state, callable $set, callable $get) {
+                            ->afterStateHydrated(function ($state, callable $set, callable $get, $livewire): void {
 
                                 if (! $state) {
                                     return;
@@ -313,38 +308,39 @@ class PosOrderResource extends Resource
                                     return;
                                 }
 
-                                $taxData = self::getItemTaxData($item);
-                                $taxPercent = $taxData['percentage'];
                                 $price = $item->price;
                                 $qty = $get('quantity') ?? 1;
+                                $taxSnapshot = self::calculateItemTax($livewire->data ?? [], $item, $qty, $price);
 
-                                $subtotal = $price * $qty;
-                                $taxAmount = ($subtotal * $taxPercent) / 100;
-                                $total = $subtotal + $taxAmount;
-
-                                $set('tax_id', $taxData['tax_id']);
-                                $set('tax_ids', $taxData['tax_ids']);
+                                $set('tax_id', $taxSnapshot['tax_ids'][0] ?? null);
+                                $set('tax_ids', $taxSnapshot['tax_ids']);
                                 $set('price', $price);
-                                $set('tax_percentage', $taxPercent);
-                                $set('subtotal', $subtotal);
-                                $set('tax_amount', $taxAmount);
-                                $set('total', $total);
+                                $set('tax_percentage', $taxSnapshot['total_percentage']);
+                                $set('subtotal', $taxSnapshot['taxable_amount']);
+                                $set('tax_amount', $taxSnapshot['tax_amount']);
+                                $set('total', $taxSnapshot['taxable_amount'] + $taxSnapshot['tax_amount']);
                             })
                             ->required(),
                         TextInput::make('quantity')
                             ->numeric()
                             ->default(1)
                             ->reactive()
-                            ->afterStateUpdated(function (callable $set, callable $get, $state): void {
-                                $price = $get('price') ?? 0;
-                                $taxPercent = $get('tax_percentage') ?? 0;
-                                $subtotal = $price * $state;
-                                $taxAmount = ($subtotal * $taxPercent) / 100;
-                                $total = $subtotal + $taxAmount;
+                            ->afterStateUpdated(function (callable $set, callable $get, $state, $livewire): void {
+                                $item = PosItem::find($get('pos_item_id'));
 
-                                $set('subtotal', $subtotal);
-                                $set('tax_amount', $taxAmount);
-                                $set('total', $total);
+                                if (! $item) {
+                                    return;
+                                }
+
+                                $price = $get('price') ?? $item->price;
+                                $taxSnapshot = self::calculateItemTax($livewire->data ?? [], $item, $state, $price);
+
+                                $set('tax_id', $taxSnapshot['tax_ids'][0] ?? null);
+                                $set('tax_ids', $taxSnapshot['tax_ids']);
+                                $set('subtotal', $taxSnapshot['taxable_amount']);
+                                $set('tax_amount', $taxSnapshot['tax_amount']);
+                                $set('tax_percentage', $taxSnapshot['total_percentage']);
+                                $set('total', $taxSnapshot['taxable_amount'] + $taxSnapshot['tax_amount']);
                             })
                             ->required(),
                         TextInput::make('price')
@@ -354,10 +350,20 @@ class PosOrderResource extends Resource
                             ->dehydrated(true),
                         Placeholder::make('applied_tax')
                             ->label('Applied Tax')
-                            ->content(fn ($get) => self::formatTaxBreakdown(
-                                $get('tax_ids') ?? array_filter([$get('tax_id')]),
-                                (float) ($get('subtotal') ?? 0)
-                            )),
+                            ->content(function ($get, $livewire): string {
+                                $item = PosItem::find($get('pos_item_id'));
+
+                                if (! $item) {
+                                    return '0%';
+                                }
+
+                                return self::formatTaxCalculation(self::calculateItemTax(
+                                    $livewire->data ?? [],
+                                    $item,
+                                    $get('quantity') ?? 1,
+                                    $get('price') ?? $item->price,
+                                ));
+                            }),
                         TextInput::make('tax_percentage')
                             ->hidden()
                             ->reactive()
@@ -375,24 +381,27 @@ class PosOrderResource extends Resource
                             ->disabled()
                             ->dehydrated(true),
                     ])
-                    ->mutateRelationshipDataBeforeSaveUsing(function (array $data): array {
+                    ->mutateRelationshipDataBeforeSaveUsing(function (array $data, $livewire): array {
 
-                        $price = $data['price'] ?? 0;
-                        $qty = $data['quantity'] ?? 1;
+                        $item = PosItem::find($data['pos_item_id'] ?? null);
 
-                        $taxes = Tax::query()
-                            ->whereIn('id', $data['tax_ids'] ?? array_filter([$data['tax_id'] ?? null]))
-                            ->get();
-                        $taxPercent = (float) $taxes->sum('percentage');
+                        if (! $item) {
+                            return $data;
+                        }
 
-                        $subtotal = $price * $qty;
-                        $taxAmount = ($subtotal * $taxPercent) / 100;
+                        $taxSnapshot = self::calculateItemTax(
+                            $livewire->data ?? [],
+                            $item,
+                            $data['quantity'] ?? 1,
+                            $data['price'] ?? $item->price,
+                        );
 
-                        $data['tax_percentage'] = $taxPercent;
-                        $data['tax_amount'] = $taxAmount;
-                        $data['tax_id'] = $taxes->first()?->id;
-                        $data['tax_ids'] = $taxes->pluck('id')->values()->all();
-                        $data['total'] = $subtotal + $taxAmount;
+                        $data['tax_id'] = $taxSnapshot['tax_ids'][0] ?? null;
+                        $data['tax_ids'] = $taxSnapshot['tax_ids'];
+                        $data['tax_percentage'] = $taxSnapshot['total_percentage'];
+                        $data['tax_amount'] = $taxSnapshot['tax_amount'];
+                        $data['subtotal'] = $taxSnapshot['taxable_amount'];
+                        $data['total'] = $taxSnapshot['taxable_amount'] + $taxSnapshot['tax_amount'];
 
                         return $data;
                     })
@@ -557,42 +566,40 @@ class PosOrderResource extends Resource
         return $reservationGuest?->guest_id ?? $reservation->guest_id;
     }
 
-    /**
-     * @return array{tax_id: int|null, tax_ids: array<int>, percentage: float}
-     */
-    private static function getItemTaxData(PosItem $item): array
+    private static function calculateItemTax(array $orderData, PosItem $item, mixed $quantity, mixed $price): array
     {
-        $taxes = $item->category?->taxes()
-            ->where('status', true)
-            ->get();
-
-        if ($taxes?->isEmpty() ?? true) {
-            $taxes = collect(array_filter([$item->category?->tax]));
-        }
-
-        return [
-            'tax_id' => $taxes->first()?->id,
-            'tax_ids' => $taxes->pluck('id')->values()->all(),
-            'percentage' => (float) $taxes->sum('percentage'),
-        ];
+        return app(TaxService::class)->calculatePosItem(
+            order: self::makeTransientOrder($orderData),
+            item: $item,
+            quantity: $quantity,
+            price: $price,
+        );
     }
 
-    private static function formatTaxBreakdown(array $taxIds, float $subtotal = 0): string
+    private static function makeTransientOrder(array $data): PosOrder
     {
-        $taxes = Tax::query()
-            ->whereIn('id', $taxIds)
-            ->orderBy('name')
-            ->get();
+        return new PosOrder([
+            'reservation_id' => $data['reservation_id'] ?? null,
+            'reservation_room_id' => $data['reservation_room_id'] ?? null,
+            'reservation_room_detail_id' => $data['reservation_room_detail_id'] ?? null,
+            'pos_outlet_id' => $data['pos_outlet_id'] ?? null,
+        ]);
+    }
 
-        if ($taxes->isEmpty()) {
+    private static function formatTaxCalculation(array $taxCalculation): string
+    {
+        if (empty($taxCalculation['taxes'])) {
             return '0%';
         }
 
-        return $taxes
-            ->map(function (Tax $tax) use ($subtotal): string {
-                $amount = $subtotal > 0 ? ' (Rs. '.number_format(($subtotal * (float) $tax->percentage) / 100, 2).')' : '';
-
-                return $tax->name.' '.number_format((float) $tax->percentage, 2).'%'.$amount;
+        return collect($taxCalculation['taxes'])
+            ->map(function (array $tax): string {
+                return sprintf(
+                    '%s %s%% (Rs. %s)',
+                    $tax['name'],
+                    number_format((float) $tax['percentage'], 2),
+                    number_format((float) $tax['amount'], 2),
+                );
             })
             ->join(' + ');
     }
@@ -674,7 +681,9 @@ class PosOrderResource extends Resource
 
                                     TextEntry::make('tax_breakdown')
                                         ->label('Taxes')
-                                        ->state(fn ($record): string => self::formatTaxBreakdown($record->tax_ids ?: array_filter([$record->tax_id]), (float) $record->subtotal)),
+                                        ->state(fn ($record): string => self::formatTaxCalculation([
+                                            'taxes' => $record->tax_breakdown,
+                                        ])),
 
                                     TextEntry::make('subtotal')
                                         ->money('INR'),

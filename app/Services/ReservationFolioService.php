@@ -13,12 +13,22 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ReservationFolioService
 {
+    public function __construct(
+        private readonly TaxService $taxService,
+    ) {}
+
     public function syncReservationStayCharge(Reservation $reservation): void
     {
-        $amount = round(((float) $reservation->rate) * ((int) $reservation->nights), 2);
+        $nights = $this->reservationNights($reservation);
+        $taxSnapshot = $this->taxService->calculateAccommodation(
+            tariffPerNight: $this->taxService->reservationTariff($reservation),
+            nights: $nights,
+        );
+        $amount = $taxSnapshot['taxable_amount'];
 
         if ($amount <= 0) {
             $this->deleteEntry('reservation', $reservation->id, 'stay_charge');
+            $this->deleteEntry('reservation', $reservation->id, 'stay_tax');
 
             return;
         }
@@ -31,12 +41,25 @@ class ReservationFolioService
             sourceKey: 'stay_charge',
             description: sprintf(
                 'Room charge for %s night(s) at %s',
-                max(1, (int) $reservation->nights),
+                $nights,
                 number_format((float) $reservation->rate, 2, '.', '')
             ),
             amount: $amount,
             type: 'debit',
             entryType: 'charge',
+            postedAt: $reservation->check_in ? Carbon::parse($reservation->check_in) : now(),
+            reference: $reservation->reservation_number,
+            taxCalculation: $taxSnapshot,
+        );
+
+        $this->syncAccommodationTaxEntry(
+            reservation: $reservation,
+            reservationRoom: null,
+            source: 'reservation',
+            sourceId: $reservation->id,
+            sourceKey: 'stay_tax',
+            roomLabel: 'Reservation',
+            taxCalculation: $taxSnapshot,
             postedAt: $reservation->check_in ? Carbon::parse($reservation->check_in) : now(),
             reference: $reservation->reservation_number,
         );
@@ -51,11 +74,16 @@ class ReservationFolioService
         }
 
         $rate = (float) ($reservationRoom->rate ?: $reservation->rate);
-        $nights = (int) ($reservationRoom->nights ?: $reservation->nights ?: 1);
-        $amount = round($rate * $nights, 2);
+        $nights = $this->reservationRoomNights($reservationRoom);
+        $taxSnapshot = $this->taxService->calculateAccommodation(
+            tariffPerNight: $rate,
+            nights: $nights,
+        );
+        $amount = $taxSnapshot['taxable_amount'];
 
         if ($amount <= 0) {
             $this->deleteEntry('reservation_room', $reservationRoom->id, 'stay_charge');
+            $this->deleteEntry('reservation_room', $reservationRoom->id, 'stay_tax');
 
             return;
         }
@@ -77,6 +105,19 @@ class ReservationFolioService
             entryType: 'charge',
             postedAt: $reservationRoom->check_in ? Carbon::parse($reservationRoom->check_in) : now(),
             reference: $reservation->reservation_number,
+            taxCalculation: $taxSnapshot,
+        );
+
+        $this->syncAccommodationTaxEntry(
+            reservation: $reservation,
+            reservationRoom: $reservationRoom,
+            source: 'reservation_room',
+            sourceId: $reservationRoom->id,
+            sourceKey: 'stay_tax',
+            roomLabel: 'Room '.($reservationRoom->room_number ?: 'Auto'),
+            taxCalculation: $taxSnapshot,
+            postedAt: $reservationRoom->check_in ? Carbon::parse($reservationRoom->check_in) : now(),
+            reference: $reservation->reservation_number,
         );
     }
 
@@ -90,9 +131,9 @@ class ReservationFolioService
 
         $reservation = $order->reservation;
         $reservationRoomDetail = $order->reservationRoomDetail;
-        
+
         // if (! $reservation || ! $reservationRoomDetail || ! $reservationRoomDetail->isCheckedIn() || $order->status === 'draft') {
-         if (! $reservation || ! $reservationRoomDetail || $order->status === 'draft') {
+        if (! $reservation || ! $reservationRoomDetail || $order->status === 'draft') {
             $this->deleteEntriesForSource('pos_order', $order->id);
 
             return;
@@ -125,6 +166,7 @@ class ReservationFolioService
             description: 'POS tax - Order #'.$reference,
             postedAt: $postedAt,
             reference: $reference,
+            taxCalculation: $this->orderTaxCalculation($order),
         );
 
         $this->syncOrderComponent(
@@ -166,7 +208,7 @@ class ReservationFolioService
 
             $order->refresh();
         }
-dd($order);
+
         $this->syncPosOrderCharges($order);
 
         if (! $order->reservation_id || ! $order->reservation_room_detail_id || $payment->payment_method === 'room_posting') {
@@ -273,6 +315,7 @@ dd($order);
         string $description,
         mixed $postedAt,
         string $reference,
+        ?array $taxCalculation = null,
     ): void {
         if ($amount <= 0) {
             $this->deleteEntry('pos_order', $order->id, $sourceKey);
@@ -293,7 +336,118 @@ dd($order);
             postedAt: $postedAt,
             reference: $reference,
             reservationRoomDetail: $reservationRoomDetail,
+            taxCalculation: $taxCalculation,
         );
+    }
+
+    private function syncAccommodationTaxEntry(
+        Reservation $reservation,
+        ?ReservationRoom $reservationRoom,
+        string $source,
+        int|string $sourceId,
+        string $sourceKey,
+        string $roomLabel,
+        array $taxCalculation,
+        mixed $postedAt,
+        ?string $reference,
+    ): void {
+        if ((float) $taxCalculation['tax_amount'] <= 0) {
+            $this->deleteEntry($source, $sourceId, $sourceKey);
+
+            return;
+        }
+
+        $this->upsertEntry(
+            reservation: $reservation,
+            reservationRoom: $reservationRoom,
+            source: $source,
+            sourceId: $sourceId,
+            sourceKey: $sourceKey,
+            description: sprintf(
+                '%s tax at %s%% on %s',
+                $roomLabel,
+                number_format((float) $taxCalculation['total_percentage'], 2, '.', ''),
+                number_format((float) $taxCalculation['taxable_amount'], 2, '.', ''),
+            ),
+            amount: (float) $taxCalculation['tax_amount'],
+            type: 'debit',
+            entryType: 'tax',
+            postedAt: $postedAt,
+            reference: $reference,
+            taxCalculation: $taxCalculation,
+        );
+    }
+
+    private function orderTaxCalculation(PosOrder $order): array
+    {
+        $items = $order->items()->get();
+        $taxes = collect();
+
+        foreach ($items as $item) {
+            foreach ($item->tax_breakdown as $tax) {
+                $key = implode('|', [
+                    $tax['name'] ?? '',
+                    $tax['type'] ?? '',
+                    $tax['percentage'] ?? '',
+                    $tax['tax_id'] ?? '',
+                    $tax['rule_id'] ?? '',
+                ]);
+
+                $current = $taxes->get($key, [
+                    'name' => $tax['name'] ?? 'Tax',
+                    'type' => $tax['type'] ?? TaxService::TYPE_GST,
+                    'percentage' => (float) ($tax['percentage'] ?? 0),
+                    'amount' => 0.00,
+                    'rule_id' => $tax['rule_id'] ?? null,
+                    'tax_id' => $tax['tax_id'] ?? null,
+                ]);
+
+                $current['amount'] = round((float) $current['amount'] + (float) ($tax['amount'] ?? 0), 2);
+                $taxes->put($key, $current);
+            }
+        }
+
+        return [
+            'taxable_amount' => (float) $order->subtotal,
+            'tax_amount' => (float) $order->tax_amount,
+            'total_percentage' => $this->taxPercentageFromAmounts((float) $order->tax_amount, (float) $order->subtotal),
+            'taxes' => $taxes->values()->all(),
+            'tax_ids' => $taxes->pluck('tax_id')->filter()->values()->all(),
+            'rule_ids' => $taxes->pluck('rule_id')->filter()->values()->all(),
+        ];
+    }
+
+    private function reservationNights(Reservation $reservation): int
+    {
+        $nights = $reservation->getAttribute('nights')
+            ?? $reservation->getRawOriginal('nights')
+            ?? Reservation::query()->whereKey($reservation->getKey())->value('nights');
+
+        return max(1, (int) $nights);
+    }
+
+    private function reservationRoomNights(ReservationRoom $reservationRoom): int
+    {
+        $nights = $reservationRoom->getAttribute('nights')
+            ?? $reservationRoom->getRawOriginal('nights')
+            ?? ReservationRoom::query()->whereKey($reservationRoom->getKey())->value('nights');
+
+        if ($nights) {
+            return max(1, (int) $nights);
+        }
+
+        return $reservationRoom->reservation
+            ? $this->reservationNights($reservationRoom->reservation)
+            : 1;
+    }
+
+    private function taxPercentageFromAmounts(float $taxAmount, float $taxableAmount): float
+    {
+        if ($taxableAmount <= 0 || $taxAmount <= 0) {
+            return 0.00;
+        }
+
+        return round(($taxAmount / $taxableAmount) * 100, 2);
     }
 
     private function upsertEntry(
@@ -310,6 +464,7 @@ dd($order);
         ?string $reference = null,
         ?string $notes = null,
         ?ReservationRoomDetail $reservationRoomDetail = null,
+        ?array $taxCalculation = null,
     ): ReservationFolio {
         return ReservationFolio::query()->updateOrCreate(
             [
@@ -325,6 +480,7 @@ dd($order);
                 'reference' => $reference,
                 'notes' => $notes,
                 'amount' => round($amount, 2),
+                ...app(TaxService::class)->taxColumns($taxCalculation ?? []),
                 'type' => $type,
                 'entry_type' => $entryType,
                 'posted_at' => $postedAt,

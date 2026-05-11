@@ -20,6 +20,10 @@ class TaxesTable
                 TextColumn::make('country.name')
                     ->label('Country')
                     ->searchable(),
+                TextColumn::make('type')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => strtoupper($state))
+                    ->sortable(),
                 TextColumn::make('percentage')
                     ->numeric()
                     ->sortable(),

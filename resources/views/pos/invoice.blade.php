@@ -40,6 +40,7 @@ th, td{
             $key = $tax['name'].'|'.$tax['percentage'];
             $current = $taxSummary->get($key, [
                 'name' => $tax['name'],
+                'type' => $tax['type'] ?? 'tax',
                 'percentage' => $tax['percentage'],
                 'amount' => 0,
             ]);
@@ -104,7 +105,7 @@ Room:
 <td>{{ $item->price }}</td>
 <td>
 @forelse($item->tax_breakdown as $tax)
-{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}% (Rs. {{ number_format($tax['amount'], 2) }})<br>
+{{ strtoupper($tax['type'] ?? 'tax') }} - {{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}% (Rs. {{ number_format($tax['amount'], 2) }})<br>
 @empty
 0%
 @endforelse
@@ -125,7 +126,7 @@ Room:
 
 @if($order->tax_amount)
 @foreach($taxSummary as $tax)
-<p>{{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}%: Rs. {{ number_format($tax['amount'], 2) }}</p>
+<p>{{ strtoupper($tax['type'] ?? 'tax') }} - {{ $tax['name'] }} {{ number_format($tax['percentage'], 2) }}%: Rs. {{ number_format($tax['amount'], 2) }}</p>
 @endforeach
 <p>Tax Total: Rs. {{ $order->tax_amount }}</p>
 @endif

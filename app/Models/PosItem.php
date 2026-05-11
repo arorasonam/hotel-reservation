@@ -11,6 +11,7 @@ class PosItem extends Model
         'pos_category_id',
         'name',
         'price',
+        'tax_category',
         'tax_amount',
         'status',
     ];

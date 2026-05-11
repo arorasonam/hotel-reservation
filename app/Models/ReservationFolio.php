@@ -18,6 +18,12 @@ class ReservationFolio extends Model
         'reference',
         'notes',
         'amount',
+        'tax_id',
+        'tax_rule_id',
+        'tax_name',
+        'tax_type',
+        'tax_percentage',
+        'tax_amount',
         'type',
         'entry_type',
         'posted_at',
@@ -27,8 +33,26 @@ class ReservationFolio extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'tax_percentage' => 'decimal:2',
+            'tax_amount' => 'decimal:2',
             'posted_at' => 'datetime',
         ];
+    }
+
+    public function getTaxBreakdownAttribute(): array
+    {
+        if ((float) $this->tax_amount <= 0 && (float) $this->tax_percentage <= 0) {
+            return [];
+        }
+
+        return [[
+            'name' => $this->tax_name ?? 'Tax',
+            'type' => $this->tax_type ?? 'tax',
+            'percentage' => (float) $this->tax_percentage,
+            'amount' => (float) $this->tax_amount,
+            'rule_id' => $this->tax_rule_id,
+            'tax_id' => $this->tax_id,
+        ]];
     }
 
     public function reservation(): BelongsTo
